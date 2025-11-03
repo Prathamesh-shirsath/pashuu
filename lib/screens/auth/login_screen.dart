@@ -1,6 +1,8 @@
+// lib/screens/auth/login_screen.dart
+import 'package:firebase_auth/firebase_auth.dart'; // <-- Import Firebase Auth
 import 'package:flutter/material.dart';
 import 'package:pashuu/screens/auth/signup_screen.dart';
-import 'package:pashuu/screens/main_navigation_screen.dart';
+// We no longer navigate directly from here, AuthGate will handle it.
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,15 +13,61 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController(); // Assuming email for now
   final _passwordController = TextEditingController();
+  bool _isPasswordVisible = false;
+
+  // New function to handle login logic
+  Future<void> signInWithEmailAndPassword() async {
+    // Show a loading circle
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      // Use Firebase to sign in
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+      // If successful, the AuthGate will automatically navigate.
+      // We just need to pop the loading dialog.
+      if (mounted) Navigator.pop(context);
+
+    } on FirebaseAuthException catch (e) {
+      // Pop the loading dialog
+      if (mounted) Navigator.pop(context);
+
+      // Show an error message
+      String errorMessage = 'An error occurred. Please check your credentials.';
+      if (e.code == 'user-not-found') {
+        errorMessage = 'No user found for that email.';
+      } else if (e.code == 'wrong-password') {
+        errorMessage = 'Wrong password provided for that user.';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    // UI remains mostly the same
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Simple Farmer Login'),
+        automaticallyImplyLeading: false,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -29,7 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 60),
+                const SizedBox(height: 40),
                 const Icon(Icons.agriculture, color: Colors.orange, size: 60),
                 const SizedBox(height: 20),
                 const Text(
@@ -39,12 +87,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 50),
                 TextFormField(
-                  controller: _phoneController,
+                  controller: _emailController,
                   decoration: const InputDecoration(
-                    labelText: 'Phone Number',
-                    hintText: 'Enter your phone number',
+                    labelText: 'Email Address', // Your UI shows Phone, but Firebase is set to email
+                    hintText: 'Enter your email',
                   ),
-                  keyboardType: TextInputType.phone,
+                  keyboardType: TextInputType.emailAddress,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -53,21 +101,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     labelText: 'Password',
                     hintText: 'Enter your password',
                     suffixIcon: IconButton(
-                      icon: const Icon(Icons.visibility_off),
-                      onPressed: () {},
+                      icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off),
+                      onPressed: () {
+                        setState(() { _isPasswordVisible = !_isPasswordVisible; });
+                      },
                     ),
                   ),
-                  obscureText: true,
+                  obscureText: !_isPasswordVisible,
                 ),
                 const SizedBox(height: 32),
                 ElevatedButton(
-                  onPressed: () {
-                    // Navigate to Home Dashboard after successful login
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
-                    );
-                  },
+                  // Call the new login function
+                  onPressed: signInWithEmailAndPassword,
                   child: const Text('Login'),
                 ),
                 const SizedBox(height: 16),
@@ -88,3 +133,4 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+

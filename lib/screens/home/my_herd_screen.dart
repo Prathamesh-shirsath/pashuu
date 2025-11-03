@@ -1,118 +1,124 @@
-import 'package:flutter/material.dart';
 
-class MyHerdScreen extends StatelessWidget {
+// lib/screens/home/my_herd_screen.dart
+
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart'; // For date formatting
+import 'package:pashuu/theme.dart';
+
+class MyHerdScreen extends StatefulWidget {
   const MyHerdScreen({super.key});
+
+  @override
+  State<MyHerdScreen> createState() => _MyHerdScreenState();
+}
+
+class _MyHerdScreenState extends State<MyHerdScreen> {
+  final User? _currentUser = FirebaseAuth.instance.currentUser;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Herd'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {},
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: [
-          _buildStatCard(),
-          const SizedBox(height: 16),
-          _buildFilterChips(),
-          const SizedBox(height: 16),
-          _buildAnimalCard('Holstein Friesian', 'Cow', 'Healthy', 'https://via.placeholder.com/150/000000/FFFFFF?text=Cow'),
-          _buildAnimalCard('Jersey', 'Cow', 'Lactating', 'https://via.placeholder.com/150/D2691E/FFFFFF?text=Cow'),
-          _buildAnimalCard('Murrah Buffalo', 'Buffalo', 'Healthy', 'https://via.placeholder.com/150/2F4F4F/FFFFFF?text=Buffalo'),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {},
-        child: const Icon(Icons.add),
-        backgroundColor: Colors.orange,
-      ),
-    );
-  }
+      appBar: AppBar(title: const Text('My Herd')),
+      body: _currentUser == null
+          ? const Center(child: Text('Please log in to see your herd.'))
+          : StreamBuilder<QuerySnapshot>(
+        // Listen for real-time updates from the 'herd' sub-collection
+        stream: FirebaseFirestore.instance
+            .collection('users')
+            .doc(_currentUser!.uid)
+            .collection('herd')
+            .orderBy('timestamp', descending: true) // Show newest first
+            .snapshots(),
+        builder: (context, snapshot) {
+          // Handle loading state
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-  Widget _buildStatCard() {
-    return Card(
-      color: Colors.green.shade50,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildStatItem('Total Animals', '62', Colors.green),
-            _buildStatItem('Lactating', '18', Colors.blue),
-          ],
-        ),
-      ),
-    );
-  }
+          // Handle error state
+          if (snapshot.hasError) {
+            return Center(child: Text('Something went wrong: ${snapshot.error}'));
+          }
 
-  Widget _buildStatItem(String label, String value, Color color) {
-    return Column(
-      children: [
-        Text(value, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: color)),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(color: Colors.black54)),
-      ],
-    );
-  }
-
-  Widget _buildFilterChips() {
-    return SizedBox(
-      height: 40,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          FilterChip(label: const Text('All'), onSelected: (b) {}, selected: true),
-          const SizedBox(width: 8),
-          FilterChip(label: const Text('Buffaloes'), onSelected: (b) {}),
-          const SizedBox(width: 8),
-          FilterChip(label: const Text('Cows'), onSelected: (b) {}),
-          const SizedBox(width: 8),
-          FilterChip(label: const Text('Goats'), onSelected: (b) {}),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAnimalCard(String name, String type, String status, String imageUrl) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(imageUrl, width: 70, height: 70, fit: BoxFit.cover),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
+          // Handle no data state
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(type, style: const TextStyle(color: Colors.grey)),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: status == 'Healthy' ? Colors.green.shade100 : Colors.orange.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(status, style: TextStyle(fontSize: 12, color: status == 'Healthy' ? Colors.green.shade800 : Colors.orange.shade800)),
-                  ),
+                  Icon(Icons.grass, size: 80, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text('Your herd is empty.', style: TextStyle(fontSize: 18)),
+                  Text('Use the "Scan Animal" feature to add animals.', style: TextStyle(color: Colors.grey)),
                 ],
               ),
-            ),
-            TextButton(onPressed: () {}, child: const Text('View Details')),
-          ],
-        ),
+            );
+          }
+
+          // Display the list of animals
+          final herdDocs = snapshot.data!.docs;
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16.0),
+            itemCount: herdDocs.length,
+            itemBuilder: (context, index) {
+              final animalData = herdDocs[index].data() as Map<String, dynamic>;
+              final timestamp = animalData['timestamp'] as Timestamp?;
+
+              return Card(
+                clipBehavior: Clip.antiAlias,
+                child: Row(
+                  children: [
+                    // Image on the left
+                    SizedBox(
+                      width: 120,
+                      height: 120,
+                      child: Image.network(
+                        animalData['imageUrl'],
+                        fit: BoxFit.cover,
+                        // Add a loading builder for better UX
+                        loadingBuilder: (context, child, progress) {
+                          return progress == null ? child : const Center(child: CircularProgressIndicator());
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(Icons.error, color: Colors.red, size: 40);
+                        },
+                      ),
+                    ),
+                    // Details on the right
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              animalData['breedName'],
+                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Confidence: ${(animalData['confidence'] * 100).toStringAsFixed(1)}%',
+                              style: TextStyle(fontSize: 16, color: AppTheme.lightTextColor),
+                            ),
+                            const SizedBox(height: 8),
+                            if (timestamp != null)
+                              Text(
+                                DateFormat('MMM d, yyyy').format(timestamp.toDate()), // Format the date
+                                style: TextStyle(fontSize: 14, color: AppTheme.lightTextColor),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }

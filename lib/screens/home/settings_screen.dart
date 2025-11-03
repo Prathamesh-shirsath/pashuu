@@ -1,3 +1,5 @@
+// lib/screens/home/settings_screen.dart
+import 'package:firebase_auth/firebase_auth.dart'; // <-- Import Firebase Auth
 import 'package:flutter/material.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -5,17 +7,19 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Get the current user from Firebase Auth
+    final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
-        actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.add)),
-        ],
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          _buildProfileCard(context, 'Anjali Sharma', 'Sharma Farms'),
+          // Use user's email if available
+          _buildProfileCard(context, user?.displayName ?? 'Anonymous', user?.email ?? 'No email available'),
           const SizedBox(height: 20),
           _buildSectionHeader('Preferences'),
           _buildSettingsTile(context, 'Notifications', Icons.notifications_none),
@@ -26,21 +30,21 @@ class SettingsScreen extends StatelessWidget {
           _buildSettingsTile(context, 'Privacy Policy', Icons.privacy_tip_outlined),
           _buildSettingsTile(context, 'Terms of Service', Icons.gavel_outlined),
           const SizedBox(height: 30),
-          _buildLogoutButton(context),
+          _buildLogoutButton(context), // This button is now functional
         ],
       ),
     );
   }
 
-  Widget _buildProfileCard(BuildContext context, String name, String farmName) {
+  Widget _buildProfileCard(BuildContext context, String name, String email) {
     return Card(
       child: ListTile(
         leading: const CircleAvatar(
           radius: 25,
-          backgroundImage: NetworkImage('https://via.placeholder.com/150/FFC107/000000?text=AS'), // Placeholder
+          backgroundImage: NetworkImage('https://via.placeholder.com/150/FFC107/000000?text=A'), // Placeholder
         ),
         title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(farmName),
+        subtitle: Text(email),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () {},
       ),
@@ -69,6 +73,7 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  // --- THIS WIDGET IS NOW FUNCTIONAL ---
   Widget _buildLogoutButton(BuildContext context) {
     return TextButton(
       style: TextButton.styleFrom(
@@ -77,8 +82,10 @@ class SettingsScreen extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      onPressed: () {
-        // Logout logic here
+      onPressed: () async {
+        // Sign out the user from Firebase
+        await FirebaseAuth.instance.signOut();
+        // The AuthGate will handle navigation back to the LoginScreen automatically.
       },
       child: const Text('Log Out', style: TextStyle(fontWeight: FontWeight.bold)),
     );
