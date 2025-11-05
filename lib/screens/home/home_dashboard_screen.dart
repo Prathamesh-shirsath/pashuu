@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:url_launcher/url_launcher.dart'; // For launching news URLs
 
 // Import the other screens
 import 'package:pashuu/screens/home/disease_guide_screen.dart';
@@ -11,6 +11,7 @@ import 'package:pashuu/screens/home/milk_profit_calculator_screen.dart';
 import 'package:pashuu/screens/home/my_herd_screen.dart';
 import 'package:pashuu/screens/home/scan_animal_screen.dart';
 import 'package:pashuu/screens/home/milk_profit_history_screen.dart';
+import 'package:pashuu/screens/home/settings_screen.dart'; // Add settings screen import
 
 // --- IMPORTS FOR DYNAMIC FEATURES ---
 import 'package:pashuu/models/article_model.dart';
@@ -37,7 +38,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   void initState() {
     super.initState();
     _getUserName();
-    _fetchData();
+    _fetchData(); // Initial data fetch
   }
 
   void _fetchData() {
@@ -74,7 +75,18 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none, size: 28),
-            onPressed: () {},
+            onPressed: () {
+              // TODO: Implement notification screen navigation
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings, size: 28), // Added Settings icon
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+            },
           ),
         ],
       ),
@@ -111,7 +123,10 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                     icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
                     label: const Text('Scan Animal'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal.shade400,
+                      backgroundColor: Colors.teal.shade400, // Specific color for this button
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      minimumSize: const Size(double.infinity, 50), // Full width
                     ),
                   ),
                 ),
@@ -149,11 +164,15 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         future: _weatherFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Card(elevation: 5, child: const SizedBox(height: 160, child: Center(child: CircularProgressIndicator())));
+            return Card(
+                elevation: 5,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: const SizedBox(height: 160, child: Center(child: CircularProgressIndicator())));
           } else if (snapshot.hasError) {
             print("Weather FutureBuilder error: ${snapshot.error}");
             return Card(
               elevation: 5,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               child: Container(
                 height: 160,
                 padding: const EdgeInsets.all(20),
@@ -201,6 +220,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     return Card(
       clipBehavior: Clip.antiAlias,
       elevation: 5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), // Consistent border radius
       child: Container(
         padding: const EdgeInsets.all(20),
         height: 160,
@@ -257,10 +277,10 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         } else if (snapshot.hasError) {
-          return Center(
+          return const Center(
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text('Failed to load news. Please check your connection.'),
+              padding: EdgeInsets.all(16.0),
+              child: Text('Failed to load news. Please check your connection or try again later.'),
             ),
           );
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -283,12 +303,17 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   Widget _buildNewsCard(Article article) {
     return Card(
       clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), // Consistent border radius
       child: InkWell(
         onTap: () async {
           if (article.url != null) {
             final uri = Uri.parse(article.url!);
             if (await canLaunchUrl(uri)) {
               await launchUrl(uri, mode: LaunchMode.externalApplication);
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Could not open news link: ${article.url}')),
+              );
             }
           }
         },
@@ -339,7 +364,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     );
   }
 
-  // --- NO CHANGES TO ANY WIDGETS BELOW THIS LINE ---
+  // --- NO CHANGES TO ANY WIDGETS BELOW THIS LINE --- (Except `SettingsScreen` navigation)
 
   Widget _buildGridMenu(BuildContext context) {
     return GridView.count(
@@ -435,6 +460,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         child: Card(
           elevation: 4,
           clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), // Consistent border radius
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -471,6 +497,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   Widget _buildGridItem(BuildContext context, IconData icon, String label, Function() onTap) {
     return Card(
       margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), // Consistent border radius
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),

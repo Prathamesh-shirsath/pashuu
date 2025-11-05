@@ -9,6 +9,7 @@ plugins {
 }
 
 android {
+
     namespace = "com.example.pashuu"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion

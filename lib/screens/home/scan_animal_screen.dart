@@ -1,189 +1,320 @@
-
-// lib/screens/home/scan_animal_screen.dart
-
+// lib/scan_animal_screen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // For rootBundle
 import 'package:image_picker/image_picker.dart';
+
+// ML Kit Imports
+import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
+
+// Firebase Imports for saving results
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:pashuu/theme.dart'; // Using your AppTheme
+
+// For copying asset -> file
+import 'package:path_provider/path_provider.dart';
+
+/// Helper: copy the model asset to a device file and return an ImageLabeler
+// Helper: copy asset model to device file and return an initialized ImageLabeler
+Future<ImageLabeler> createLabelerFromFileWithLogs({double confidenceThreshold = 0.7}) async {
+  try {
+    // 1) Load .tflite from flutter assets
+    final data = await rootBundle.load('assets/ml/breed_model.tflite');
+    final bytes = data.buffer.asUint8List();
+
+    // 2) Write to a temp file on device
+    final dir = await getTemporaryDirectory();
+    final path = '${dir.path}/breed_model.tflite';
+    final file = File(path);
+    await file.writeAsBytes(bytes, flush: true);
+
+    final exists = await file.exists();
+    final length = exists ? await file.length() : -1;
+    print('DEBUG: Model copied to: $path  exists=$exists  size=$length');
+
+    // 3) Create ImageLabeler using the modelPath string (no LocalModel object)
+    final options = LocalLabelerOptions(
+      modelPath: path,
+      confidenceThreshold: confidenceThreshold,
+    );
+
+    final labeler = ImageLabeler(options: options);
+    print('DEBUG: ImageLabeler initialized with modelPath: $path');
+
+    return labeler;
+  } catch (e, st) {
+    print('ERROR in createLabelerFromFileWithLogs: $e\n$st');
+    rethrow;
+  }
+}
+
 
 class ScanAnimalScreen extends StatefulWidget {
-  const ScanAnimalScreen({super.key});
+  const ScanAnimalScreen({Key? key}) : super(key: key);
 
   @override
   State<ScanAnimalScreen> createState() => _ScanAnimalScreenState();
 }
 
 class _ScanAnimalScreenState extends State<ScanAnimalScreen> {
-  File? _selectedImage;
+  ImageLabeler? _imageLabeler;
+  List<String>? _labels; // Local labels text file
+  File? _image; // The image file picked by the user
+  String _predictionResult = "Select an image to scan...";
+  bool _isProcessing = false;
   final ImagePicker _picker = ImagePicker();
+  final double _confidenceThreshold = 0.7; // Minimum confidence to accept a prediction
 
-  bool _isDetecting = false;
-  String? _detectionResult;
-  double? _confidence;
+  // IMPORTANT: Local model asset path (kept for reference)
+  static const String _localModelPath = 'assets/ml/breed_model.tflite';
 
-  Future<void> _captureImage() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.camera, maxWidth: 800);
-    if (image != null) {
-      setState(() {
-        _selectedImage = File(image.path);
-        _resetDetectionState();
-      });
-    }
+  @override
+  void initState() {
+    super.initState();
+    _loadModelAndLabels();
   }
 
-  Future<void> _uploadFile() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 800);
-    if (image != null) {
-      setState(() {
-        _selectedImage = File(image.path);
-        _resetDetectionState();
-      });
-    }
+  @override
+  void dispose() {
+    _imageLabeler?.close(); // Close the ImageLabeler
+    super.dispose();
   }
 
-  void _resetDetectionState() {
+  // --- Model Loading (updated to use createLabelerFromFileWithLogs) ---
+  Future<void> _loadModelAndLabels() async {
     setState(() {
-      _detectionResult = null;
-      _confidence = null;
+      _isProcessing = true;
+      _predictionResult = "Loading ML Kit model...";
     });
+    try {
+      // 1. Load labels (still needed to display breed names correctly)
+      final labelsData = await rootBundle.loadString('assets/ml/labels.txt');
+      _labels = labelsData
+          .split('\n')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+
+      // 2. Initialize ImageLabeler by copying the .tflite to device storage first
+      _imageLabeler = await createLabelerFromFileWithLogs();
+
+      print('ML Kit ImageLabeler initialized and labels loaded.');
+      setState(() {
+        _predictionResult = "Model ready! Select an image.";
+      });
+    } catch (e, st) {
+      print('Failed to load ML Kit model or labels: $e\n$st');
+      setState(() {
+        _predictionResult = "Error loading ML Kit model: $e";
+      });
+    } finally {
+      setState(() {
+        _isProcessing = false;
+      });
+    }
   }
 
-  /// This is the core new logic
-  Future<void> _detectAndSaveBreed() async {
-    if (_selectedImage == null) return;
+  // --- Image Picking ---
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(source: source);
+      if (pickedFile != null) {
+        setState(() {
+          _image = File(pickedFile.path);
+          _predictionResult = "Image selected. Processing...";
+          _isProcessing = true;
+        });
+        await _runInference(_image!);
+      }
+    } catch (e) {
+      print('Image pick error: $e');
+      setState(() {
+        _predictionResult = 'Image pick failed: $e';
+      });
+    }
+  }
 
-    setState(() { _isDetecting = true; });
-
-    // --- 1. SIMULATE MODEL PREDICTION (Placeholder) ---
-    await Future.delayed(const Duration(seconds: 2));
-    final predictedBreed = "Gir"; // Simulated result
-    final predictionConfidence = 0.92; // Simulated result
-
-    // --- 2. UPLOAD IMAGE TO FIREBASE STORAGE ---
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) { // Safety check
-      setState(() { _isDetecting = false; });
+  // --- Inference Logic ---
+  Future<void> _runInference(File imageFile) async {
+    if (_imageLabeler == null || _labels == null || _labels!.isEmpty) {
+      setState(() {
+        _predictionResult = "ML Kit model not loaded correctly. Please restart.";
+        _isProcessing = false;
+      });
       return;
     }
 
     try {
-      // Create a unique file name for the image
-      final fileName = '${user.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final storageRef = FirebaseStorage.instance.ref().child('animal_images/$fileName');
+      // Create an InputImage from the file
+      final inputImage = InputImage.fromFile(imageFile);
 
-      // Upload the file
-      final uploadTask = await storageRef.putFile(_selectedImage!);
-      final imageUrl = await uploadTask.ref.getDownloadURL();
+      // Process the image with ML Kit
+      final List<ImageLabel> imageLabels = await _imageLabeler!.processImage(inputImage);
 
-      // --- 3. SAVE DATA TO FIRESTORE ---
+      String predictedBreed = "Unknown";
+      double maxConfidence = 0.0; // Initialize to 0.0
+
+      if (imageLabels.isNotEmpty) {
+        // Find the label with the highest confidence
+        ImageLabel topLabel = imageLabels.reduce((a, b) => a.confidence > b.confidence ? a : b);
+
+        // Use topLabel.label
+        predictedBreed = topLabel.label;
+        maxConfidence = topLabel.confidence;
+
+        // Optionally, check against your _labels list if mapping is needed
+        if (!_labels!.contains(predictedBreed)) {
+          print("Warning: ML Kit label '$predictedBreed' not found in local _labels list. (Model's internal labels might differ from local labels.txt)");
+        }
+
+        if (maxConfidence >= _confidenceThreshold) {
+          setState(() {
+            _predictionResult =
+            "Breed: $predictedBreed\nConfidence: ${(maxConfidence * 100).toStringAsFixed(2)}%";
+          });
+          // Call function to save to Firestore & Storage
+          _saveAnimalToFirestore(predictedBreed, maxConfidence, imageFile);
+        } else {
+          setState(() {
+            _predictionResult =
+            "Could not confidently identify breed (below ${(_confidenceThreshold * 100).toStringAsFixed(0)}% confidence).";
+          });
+        }
+      } else {
+        setState(() {
+          _predictionResult = "No breed could be identified.";
+        });
+      }
+    } catch (e, st) {
+      print('Error during ML Kit inference: $e\n$st');
+      setState(() {
+        _predictionResult = "Error processing image with ML Kit: $e";
+      });
+    } finally {
+      setState(() {
+        _isProcessing = false;
+      });
+    }
+  }
+
+  // --- Firebase Save Function ---
+  Future<void> _saveAnimalToFirestore(String breed, double confidence, File imageFile) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to save animals.')),
+      );
+      return;
+    }
+
+    try {
+      // 1. Upload image to Firebase Storage
+      String fileName = 'animals/${user.uid}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      Reference storageRef = FirebaseStorage.instance.ref().child(fileName);
+      UploadTask uploadTask = storageRef.putFile(imageFile);
+      TaskSnapshot snapshot = await uploadTask;
+      String imageUrl = await snapshot.ref.getDownloadURL();
+
+      // 2. Save data to Cloud Firestore
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .collection('herd')
           .add({
-        'breedName': predictedBreed,
-        'confidence': predictionConfidence,
+        'breed': breed,
+        'confidence': confidence,
         'imageUrl': imageUrl,
-        'timestamp': FieldValue.serverTimestamp(), // Use server time for consistency
+        'timestamp': FieldValue.serverTimestamp(),
       });
-
-      // Update UI with results
-      setState(() {
-        _detectionResult = predictedBreed;
-        _confidence = predictionConfidence;
-        _isDetecting = false;
-      });
-
-    } catch (e) {
-      setState(() { _isDetecting = false; });
+      print('Animal saved to Firestore!');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save data: $e'), backgroundColor: Colors.red),
+        const SnackBar(content: Text('Animal saved to your herd!')),
+      );
+    } catch (e, st) {
+      print('Error saving animal to Firebase: $e\n$st');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save animal: $e')),
       );
     }
   }
 
+  // --- UI Build Method ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Scan Animal Breed')),
+      appBar: AppBar(title: const Text('Scan Animal')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // --- Image Display Area (no changes) ---
+            // Image Display Area
             Container(
-              height: 300,
+              height: 250,
+              width: double.infinity,
               decoration: BoxDecoration(
                 color: Colors.grey[200],
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300, width: 2),
+                border: Border.all(color: Colors.grey[400]!),
               ),
-              child: Center(
-                child: _selectedImage == null
-                    ? Icon(Icons.image_outlined, size: 80, color: AppTheme.lightTextColor)
-                    : ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.file(_selectedImage!, fit: BoxFit.cover, width: double.infinity, height: 300),
+              child: _image == null
+                  ? Center(
+                child: Text(
+                  'No image selected.',
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+              )
+                  : ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.file(
+                  _image!,
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
                 ),
               ),
             ),
-            const SizedBox(height: 24),
-            // --- Action Buttons (no changes) ---
-            Row(
-              children: [
-                Expanded(child: OutlinedButton.icon(onPressed: _captureImage, icon: const Icon(Icons.camera_alt), label: const Text('Capture'))),
-                const SizedBox(width: 16),
-                Expanded(child: OutlinedButton.icon(onPressed: _uploadFile, icon: const Icon(Icons.upload_file), label: const Text('Upload'))),
-              ],
-            ),
-            const SizedBox(height: 32),
-            // --- Detect Button ---
-            ElevatedButton(
-              onPressed: (_selectedImage != null && !_isDetecting) ? _detectAndSaveBreed : null, // Calls the new function
-              child: _isDetecting
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                  : const Text('Detect and Save Breed'),
-            ),
-            const SizedBox(height: 32),
-            // --- Results Display Section (no changes) ---
-            if (_detectionResult != null && _confidence != null)
-              _buildResultCard(),
-          ],
-        ),
-      ),
-    );
-  }
+            const SizedBox(height: 20),
 
-  Widget _buildResultCard() {
-    // This widget remains the same
-    return Card(
-      color: Colors.green.shade50,
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Saved to Your Herd', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
-            const SizedBox(height: 16),
+            // Image Picking Buttons
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                const Text('Breed:', style: TextStyle(fontSize: 18)),
-                Text(_detectionResult!, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isProcessing ? null : () => _pickImage(ImageSource.camera),
+                    icon: const Icon(Icons.camera_alt),
+                    label: const Text('Capture Image'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isProcessing ? null : () => _pickImage(ImageSource.gallery),
+                    icon: const Icon(Icons.image),
+                    label: const Text('Upload Image'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Confidence:', style: TextStyle(fontSize: 18)),
-                Text('${(_confidence! * 100).toStringAsFixed(1)}%', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              ],
+            const SizedBox(height: 30),
+
+            // Prediction Result Display
+            _isProcessing
+                ? const CircularProgressIndicator()
+                : Text(
+              _predictionResult,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: _predictionResult.contains("Error") ? Colors.red : null,
+              ),
             ),
           ],
         ),
