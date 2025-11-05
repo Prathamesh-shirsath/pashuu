@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "988478593263",
+    "project_id": "pashuapp-9363b",
+    "storage_bucket": "pashuapp-9363b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:988478593263:android:9690d028f1291e0ac2a31a",
+        "android_client_info": {
+          "package_name": "com.example.pashuu"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-k12UBzKKW-fKhUmTwktiwySOiE8i--A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
