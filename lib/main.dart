@@ -37,7 +37,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PashuKalyan',
+      title: 'PashuApp',
       theme: AppTheme.theme,
       debugShowCheckedModeBanner: false,
       home: const AuthGate(), // Changed from LoginScreen to AuthGate

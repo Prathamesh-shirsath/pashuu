@@ -3,14 +3,21 @@
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // Import the other screens
 import 'package:pashuu/screens/home/disease_guide_screen.dart';
 import 'package:pashuu/screens/home/milk_profit_calculator_screen.dart';
 import 'package:pashuu/screens/home/my_herd_screen.dart';
 import 'package:pashuu/screens/home/scan_animal_screen.dart';
-// --- IMPORT THE NEW HISTORY SCREEN ---
 import 'package:pashuu/screens/home/milk_profit_history_screen.dart';
+
+// --- IMPORTS FOR DYNAMIC FEATURES ---
+import 'package:pashuu/models/article_model.dart';
+import 'package:pashuu/services/news_service.dart';
+import 'package:pashuu/models/weather_model.dart';
+import 'package:pashuu/services/weather_service.dart';
+// ------------------------------------
 
 class HomeDashboardScreen extends StatefulWidget {
   const HomeDashboardScreen({super.key});
@@ -21,11 +28,22 @@ class HomeDashboardScreen extends StatefulWidget {
 
 class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   String? _userName;
+  // --- STATE VARIABLES FOR DYNAMIC DATA ---
+  late Future<List<Article>> _newsFuture;
+  late Future<Weather> _weatherFuture;
+  // ----------------------------------------
 
   @override
   void initState() {
     super.initState();
     _getUserName();
+    _fetchData();
+  }
+
+  void _fetchData() {
+    // Call the services when the screen loads or is refreshed
+    _newsFuture = NewsService().fetchNews();
+    _weatherFuture = WeatherService().fetchWeather('Delhi'); // Change city if needed
   }
 
   void _getUserName() {
@@ -60,47 +78,170 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(vertical: 16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildBeautifulWeatherCard(context),
-            const SizedBox(height: 24),
-            _buildQuickActionsCarousel(context),
-            const SizedBox(height: 24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const ScanAnimalScreen()),
-                  );
-                },
-                icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
-                label: const Text('Scan Animal'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal.shade400,
+      body: RefreshIndicator(
+        onRefresh: () async {
+          // When user pulls to refresh, fetch both news and weather again
+          setState(() {
+            _fetchData();
+          });
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // --- LIVE WEATHER SECTION ---
+                _buildWeatherSection(),
+                const SizedBox(height: 24),
+                // ----------------------------
+
+                _buildQuickActionsCarousel(context),
+                const SizedBox(height: 24),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ScanAnimalScreen()),
+                      );
+                    },
+                    icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
+                    label: const Text('Scan Animal'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal.shade400,
+                    ),
+                  ),
                 ),
+                const SizedBox(height: 24),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: _buildGridMenu(context),
+                ),
+                const SizedBox(height: 24),
+
+                // --- LIVE NEWS SECTION ---
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Text('Latest News',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 8),
+                _buildNewsSection(),
+                // --------------------------
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- WIDGETS BELOW ---
+
+  // --- NEW WIDGET TO BUILD THE WEATHER SECTION ---
+  Widget _buildWeatherSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: FutureBuilder<Weather>(
+        future: _weatherFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Card(elevation: 5, child: const SizedBox(height: 160, child: Center(child: CircularProgressIndicator())));
+          } else if (snapshot.hasError) {
+            print("Weather FutureBuilder error: ${snapshot.error}");
+            return Card(
+              elevation: 5,
+              child: Container(
+                height: 160,
+                padding: const EdgeInsets.all(20),
+                child: Center(child: Text('Failed to load weather data.\n${snapshot.error}')),
               ),
+            );
+          } else if (snapshot.hasData) {
+            return _buildBeautifulWeatherCard(context, snapshot.data!);
+          } else {
+            return const SizedBox.shrink(); // Should not happen
+          }
+        },
+      ),
+    );
+  }
+
+  // --- UPDATED WEATHER CARD TO DISPLAY LIVE DATA ---
+  Widget _buildBeautifulWeatherCard(BuildContext context, Weather weather) {
+    IconData weatherIcon;
+    String recommendation = "Have a great day!";
+
+    switch (weather.condition) {
+      case 'Clear':
+        weatherIcon = Icons.wb_sunny;
+        recommendation = 'Sunny! Good for grazing.';
+        break;
+      case 'Clouds':
+        weatherIcon = Icons.cloud;
+        recommendation = 'Cloudy, good weather.';
+        break;
+      case 'Rain':
+      case 'Drizzle':
+        weatherIcon = Icons.grain;
+        recommendation = 'Rainy day, check on shelter.';
+        break;
+      case 'Thunderstorm':
+        weatherIcon = Icons.flash_on;
+        recommendation = 'Stormy! Keep animals safe.';
+        break;
+      default:
+        weatherIcon = Icons.cloud_outlined;
+        recommendation = 'Check local weather updates.';
+    }
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      elevation: 5,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        height: 160,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.blue.shade400, Colors.lightBlue.shade200],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '${weather.temperature.toStringAsFixed(0)}°C',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 42,
+                      fontWeight: FontWeight.bold,
+                      shadows: [Shadow(blurRadius: 2, color: Colors.black26)]),
+                ),
+                Text(
+                  weather.condition,
+                  style: const TextStyle(color: Colors.white, fontSize: 20),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  recommendation,
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+              ],
             ),
-            const SizedBox(height: 24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: _buildGridMenu(context),
-            ),
-            const SizedBox(height: 24),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
-              child: Text('Latest News',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: _buildNewsCard('Expert Advice on Pest Control',
-                  'Learn what the experts say...'),
+            Icon(
+              weatherIcon,
+              size: 90,
+              color: Colors.white.withOpacity(0.8),
+              shadows: const [Shadow(blurRadius: 4, color: Colors.black26)],
             ),
           ],
         ),
@@ -108,7 +249,97 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     );
   }
 
-  // --- WIDGETS BELOW (ONLY _buildGridMenu IS MODIFIED) ---
+  // --- NEW WIDGET TO BUILD THE NEWS LIST ---
+  Widget _buildNewsSection() {
+    return FutureBuilder<List<Article>>(
+      future: _newsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        } else if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text('Failed to load news. Please check your connection.'),
+            ),
+          );
+        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text('No news articles found.'));
+        } else {
+          final articles = snapshot.data!;
+          return Column(
+            children: articles.map((article) =>
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  child: _buildNewsCard(article),
+                )).toList(),
+          );
+        }
+      },
+    );
+  }
+
+  // --- UPDATED NEWS CARD WIDGET ---
+  Widget _buildNewsCard(Article article) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () async {
+          if (article.url != null) {
+            final uri = Uri.parse(article.url!);
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            }
+          }
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (article.urlToImage != null && article.urlToImage!.isNotEmpty)
+              Image.network(
+                article.urlToImage!,
+                height: 180,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, progress) {
+                  return progress == null
+                      ? child
+                      : const SizedBox(height: 180, child: Center(child: CircularProgressIndicator()));
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return const SizedBox(
+                      height: 180, child: Icon(Icons.image_not_supported, color: Colors.grey, size: 50));
+                },
+              ),
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    article.title ?? 'No Title',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  if (article.description != null && article.description!.isNotEmpty)
+                    Text(
+                      article.description!,
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- NO CHANGES TO ANY WIDGETS BELOW THIS LINE ---
 
   Widget _buildGridMenu(BuildContext context) {
     return GridView.count(
@@ -135,17 +366,14 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const MyHerdScreen()));
           },
         ),
-        // --- THIS IS THE MODIFIED WIDGET ---
         _buildGridItem(
           context,
-          Icons.history, // Changed icon
-          'PROFIT HISTORY', // Changed label
+          Icons.history,
+          'PROFIT HISTORY',
               () {
-            // Changed navigation target
             Navigator.push(context, MaterialPageRoute(builder: (_) => const MilkProfitHistoryScreen()));
           },
         ),
-        // -----------------------------------
         _buildGridItem(
           context,
           Icons.calculate,
@@ -155,63 +383,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
           },
         ),
       ],
-    );
-  }
-
-  // --- No changes to any other widgets below this line ---
-
-  Widget _buildBeautifulWeatherCard(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        elevation: 5,
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          height: 160,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.blue.shade300, Colors.lightBlue.shade100],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '28°C',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 42,
-                        fontWeight: FontWeight.bold,
-                        shadows: [Shadow(blurRadius: 2, color: Colors.black26)]),
-                  ),
-                  Text(
-                    'Sunny',
-                    style: TextStyle(color: Colors.white, fontSize: 20),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    'Good for grazing',
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                ],
-              ),
-              Icon(
-                Icons.wb_sunny,
-                size: 90,
-                color: Colors.white.withOpacity(0.8),
-                shadows: const [Shadow(blurRadius: 4, color: Colors.black26)],
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -316,16 +487,4 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       ),
     );
   }
-
-  Widget _buildNewsCard(String title, String subtitle) {
-    return Card(
-      child: ListTile(
-        leading: const Icon(Icons.article_outlined, size: 40, color: Colors.grey),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-      ),
-    );
-  }
 }
-
