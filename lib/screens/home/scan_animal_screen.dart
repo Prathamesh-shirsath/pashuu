@@ -28,7 +28,7 @@ Future<ImageLabeler> createLabelerFromFileWithLogs({double confidenceThreshold =
     final path = '${dir.path}/breed_model.tflite';
     final file = File(path);
     await file.writeAsBytes(bytes, flush: true);
-
+//pratham
     final exists = await file.exists();
     final length = exists ? await file.length() : -1;
     print('DEBUG: Model copied to: $path  exists=$exists  size=$length');
