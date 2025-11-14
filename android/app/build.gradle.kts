@@ -28,8 +28,8 @@ android {
         applicationId = "com.example.pashuu"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        minSdkVersion(26)    // <-- function-call form (note the parentheses)
+        targetSdkVersion(33)
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

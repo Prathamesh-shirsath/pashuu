@@ -83,6 +83,7 @@ flutter:
   assets:
     - assets/ml/breed_model.tflite
     - assets/ml/labels.txt
+    - assets/ml/breed_model_with_metadata.tflite
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

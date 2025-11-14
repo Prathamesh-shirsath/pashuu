@@ -7,9 +7,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart'; // Import for PDF creation
 import 'package:pdf/widgets.dart' as pw; // Use pw for pdf widgets
-import 'package:printing/printing.dart'; // Import for printing/sharing
+// 'package:printing/printing.dart'; // Import for printing/sharing
 import 'package:path_provider/path_provider.dart'; // For saving temporary file
-import 'package:share_plus/share_plus.dart'; // For sharing the file
+
 
 // Helper class for monthly aggregated data
 class MonthlyReportData {
@@ -443,8 +443,6 @@ class _MilkProfitHistoryScreenState extends State<MilkProfitHistoryScreen> {
       final file = File("${output.path}/pashuu_profit_report_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf");
       await file.writeAsBytes(await pdf.save());
 
-      // Use share_plus to share the PDF
-      await Share.shareXFiles([XFile(file.path)], text: 'Here is your Pashuu App Milk Profit Report!');
 
     } catch (e) {
       print('Error generating or sharing PDF: $e');

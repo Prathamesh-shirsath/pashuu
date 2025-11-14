@@ -66,7 +66,7 @@ class _LoginScreenState extends State<LoginScreen> {
     // UI remains mostly the same
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Simple Farmer Login'),
+        title: const Text('Farmer Login'),
         automaticallyImplyLeading: false,
       ),
       body: SafeArea(

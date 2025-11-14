@@ -176,7 +176,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
               child: Container(
                 height: 160,
                 padding: const EdgeInsets.all(20),
-                child: Center(child: Text('Failed to load weather data.\n${snapshot.error}')),
+                child: Center(child: Text('Failed to load weather data.\n${snapshot.error}', textAlign: TextAlign.center,)),
               ),
             );
           } else if (snapshot.hasData) {
@@ -269,7 +269,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     );
   }
 
-  // --- NEW WIDGET TO BUILD THE NEWS LIST ---
+  // --- WIDGET TO BUILD THE NEWS LIST ---
   Widget _buildNewsSection() {
     return FutureBuilder<List<Article>>(
       future: _newsFuture,
@@ -277,14 +277,29 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         } else if (snapshot.hasError) {
-          return const Center(
+          // Improved error message for the user
+          print("News FutureBuilder error: ${snapshot.error}"); // Keep for debugging
+          return Center(
             child: Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Text('Failed to load news. Please check your connection or try again later.'),
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'Failed to load latest news. Please check your internet connection, refresh the page, or try again later. Error: ${snapshot.error}',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 14),
+              ),
             ),
           );
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text('No news articles found.'));
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text(
+                'No news articles found for your region/query at this time. Try refreshing!',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+            ),
+          );
         } else {
           final articles = snapshot.data!;
           return Column(
@@ -299,7 +314,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     );
   }
 
-  // --- UPDATED NEWS CARD WIDGET ---
+  // --- UPDATED NEWS CARD WIDGET WITH IMAGE FALLBACK ---
   Widget _buildNewsCard(Article article) {
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -320,6 +335,8 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // --- IMAGE DISPLAY OR FALLBACK ---
+            /*
             if (article.urlToImage != null && article.urlToImage!.isNotEmpty)
               Image.network(
                 article.urlToImage!,
@@ -332,10 +349,45 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                       : const SizedBox(height: 180, child: Center(child: CircularProgressIndicator()));
                 },
                 errorBuilder: (context, error, stackTrace) {
-                  return const SizedBox(
-                      height: 180, child: Icon(Icons.image_not_supported, color: Colors.grey, size: 50));
+                  // Fallback if the network image itself fails to load
+                  return Container(
+                    height: 180,
+                    width: double.infinity,
+                    color: Colors.grey[200],
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.image_not_supported, color: Colors.grey[600], size: 50),
+                        const SizedBox(height: 8),
+                        Text('Image not loaded', style: TextStyle(color: Colors.grey[600])),
+                      ],
+                    ),
+                  );
                 },
+              )
+            else // --- Fallback when urlToImage is null or empty ---
+              Container(
+                height: 180,
+                width: double.infinity,
+                color: Colors.grey[200], // Light grey background for the placeholder
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.newspaper, color: Colors.grey[600], size: 60), // A news-related icon
+                    const SizedBox(height: 10),
+                    Text(
+                      'No Image Available',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+            // --- END IMAGE DISPLAY OR FALLBACK ---*/
+
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: Column(
@@ -364,8 +416,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     );
   }
 
-  // --- NO CHANGES TO ANY WIDGETS BELOW THIS LINE --- (Except `SettingsScreen` navigation)
-
+  // --- MOVED INSIDE _HomeDashboardScreenState ---
   Widget _buildGridMenu(BuildContext context) {
     return GridView.count(
       crossAxisCount: 2,
@@ -411,6 +462,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     );
   }
 
+  // --- MOVED INSIDE _HomeDashboardScreenState ---
   Widget _buildQuickActionsCarousel(BuildContext context) {
     final List<Widget> items = [
       _buildCarouselItem(
@@ -452,6 +504,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     );
   }
 
+  // --- MOVED INSIDE _HomeDashboardScreenState ---
   Widget _buildCarouselItem(String title, String imageUrl, Color bgColor, Function() onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -494,6 +547,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     );
   }
 
+  // --- MOVED INSIDE _HomeDashboardScreenState ---
   Widget _buildGridItem(BuildContext context, IconData icon, String label, Function() onTap) {
     return Card(
       margin: EdgeInsets.zero,

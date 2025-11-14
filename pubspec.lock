@@ -13,10 +13,10 @@ packages:
     dependency: transitive
     description:
       name: archive
-      sha256: "2fde1607386ab523f7a36bb3e7edb43bd58e6edaf2ffb29d8a6d578b297fdbbd"
+      sha256: cb6a278ef2dbb298455e1a713bda08524a175630ec643a242c399c932a0a1f7d
       url: "https://pub.dev"
     source: hosted
-    version: "4.0.7"
+    version: "3.6.1"
   async:
     dependency: transitive
     description:
@@ -173,10 +173,10 @@ packages:
     dependency: transitive
     description:
       name: file_selector_platform_interface
-      sha256: a3994c26f10378a039faa11de174d7b78eb8f79e4dd0af2a451410c1a5c3f66b
+      sha256: "35e0bd61ebcdb91a3505813b055b09b79dfdc7d0aee9c09a7ba59ae4bb13dc85"
       url: "https://pub.dev"
     source: hosted
-    version: "2.6.2"
+    version: "2.7.0"
   file_selector_windows:
     dependency: transitive
     description:
@@ -332,10 +332,10 @@ packages:
     dependency: "direct main"
     description:
       name: http
-      sha256: bb2ce4590bc2667c96f318d68cac1b5a7987ec819351d32b1c987239a815e007
+      sha256: "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412"
       url: "https://pub.dev"
     source: hosted
-    version: "1.5.0"
+    version: "1.6.0"
   http_parser:
     dependency: transitive
     description:
@@ -348,18 +348,18 @@ packages:
     dependency: transitive
     description:
       name: image
-      sha256: "4e973fcf4caae1a4be2fa0a13157aa38a8f9cb049db6529aa00b4d71abc4d928"
+      sha256: f31d52537dc417fdcde36088fdf11d191026fd5e4fae742491ebd40e5a8bea7d
       url: "https://pub.dev"
     source: hosted
-    version: "4.5.4"
+    version: "4.3.0"
   image_picker:
     dependency: "direct main"
     description:
       name: image_picker
-      sha256: "736eb56a911cf24d1859315ad09ddec0b66104bc41a7f8c5b96b4e2620cf5041"
+      sha256: "784210112be18ea55f69d7076e2c656a4e24949fa9e76429fe53af0c0f4fa320"
       url: "https://pub.dev"
     source: hosted
-    version: "1.2.0"
+    version: "1.2.1"
   image_picker_android:
     dependency: transitive
     description:
@@ -508,10 +508,10 @@ packages:
     dependency: "direct main"
     description:
       name: path_provider
-      sha256: "50c5dd5b6e1aaf6fb3a78b33f6aa3afca52bf903a8a5298f53101fdaee55bbcd"
+      sha256: "3087813781ab814e4157b172f1a11c46be20179fcc9bea043e0fba36bc0acaa2"
       url: "https://pub.dev"
     source: hosted
-    version: "2.1.5"
+    version: "2.0.15"
   path_provider_android:
     dependency: transitive
     description:
@@ -592,14 +592,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.8"
-  posix:
-    dependency: transitive
-    description:
-      name: posix
-      sha256: "6323a5b0fa688b6a010df4905a56b00181479e6d10534cecfecede2aa55add61"
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.0.3"
   printing:
     dependency: "direct main"
     description:
