@@ -42,24 +42,30 @@ dependencies:
   firebase_storage: 13.0.4
   intl: ^0.20.2
 
-  image_picker: ^1.0.4
+
+  #tflite: ^1.1.2 # Add this line
+  image_picker: ^1.0.7
   http: ^1.2.1
   url_launcher: ^6.1.14
+  image: ^4.1.7
 
 
-  google_mlkit_image_labeling: ^0.14.0 # ML Kit for custom models
-  firebase_ml_model_downloader: 0.4.0+4
+
 
   pdf: ^3.10.4        # For creating PDF documents
   printing: ^5.11.1   # For printing, previewing, and sharing PDFs
   path_provider: ^2.0.0 # For getting temporary directory to save PDF
   share_plus: ^7.2.1
+  tflite_flutter: ^0.12.1
+  provider: ^6.1.1 # <--- ADD THIS LINE
 
 
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
+
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -83,7 +89,7 @@ flutter:
   assets:
     - assets/ml/breed_model.tflite
     - assets/ml/labels.txt
-    - assets/ml/breed_model_with_metadata.tflite
+
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
