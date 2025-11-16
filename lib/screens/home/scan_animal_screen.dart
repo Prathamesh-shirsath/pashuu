@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:image/image.dart' as img;
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ScanAnimalScreen extends StatefulWidget {
   const ScanAnimalScreen({super.key});
@@ -17,7 +20,7 @@ class _ScanAnimalScreenState extends State<ScanAnimalScreen> {
   File? _image;
   List<double>? _output;
   Interpreter? _interpreter;
-  bool _loading = true; // Still true initially to load model
+  bool _loading = true;
   List<String>? _labels;
 
   @override
@@ -45,7 +48,6 @@ class _ScanAnimalScreenState extends State<ScanAnimalScreen> {
 
   Future<void> loadLabels() async {
     try {
-      // Ensure you are using the correct context for DefaultAssetBundle
       final labelsData =
       await DefaultAssetBundle.of(context).loadString('assets/ml/labels.txt');
       _labels = labelsData.split('\n');
@@ -61,7 +63,6 @@ class _ScanAnimalScreenState extends State<ScanAnimalScreen> {
     super.dispose();
   }
 
-  // Generic image picker function
   Future<void> _getImage(ImageSource source) async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: source);
@@ -69,7 +70,7 @@ class _ScanAnimalScreenState extends State<ScanAnimalScreen> {
       setState(() {
         _loading = true;
         _image = File(pickedFile.path);
-        _output = null; // Clear previous output
+        _output = null;
       });
       classifyImage(_image!);
     }
@@ -78,25 +79,18 @@ class _ScanAnimalScreenState extends State<ScanAnimalScreen> {
   Future<void> classifyImage(File imageFile) async {
     if (_interpreter == null || _labels == null) {
       print('Interpreter or labels not initialized.');
-      setState(() {
-        _loading = false;
-      });
+      setState(() { _loading = false; });
       return;
     }
-
     img.Image? originalImage = img.decodeImage(imageFile.readAsBytesSync());
     if (originalImage == null) return;
-
     final inputShape = _interpreter!.getInputTensor(0).shape;
     final inputHeight = inputShape[1];
     final inputWidth = inputShape[2];
-
     img.Image resizedImage =
     img.copyResize(originalImage, width: inputWidth, height: inputHeight);
-
     var inputBytes = resizedImage.getBytes(order: img.ChannelOrder.rgb);
     var inputAsList = inputBytes.map((byte) => byte / 255.0).toList();
-
     final input = [
       List.generate(
           inputHeight,
@@ -109,13 +103,10 @@ class _ScanAnimalScreenState extends State<ScanAnimalScreen> {
             ];
           }))
     ];
-
     final outputShape = _interpreter!.getOutputTensor(0).shape;
     var output =
     List.filled(outputShape.reduce((a, b) => a * b), 0.0).reshape(outputShape);
-
     _interpreter!.run(input, output);
-
     setState(() {
       final results = output[0] as List;
       _output = results.map((e) => e as double).toList();
@@ -123,23 +114,51 @@ class _ScanAnimalScreenState extends State<ScanAnimalScreen> {
     });
   }
 
-  void _saveToHerd(String label, double confidence, String imagePath) {
-    // In a real app, you would navigate to a new screen or use a state
-    // management solution (like Provider or BLoC) to add this data
-    // to your database.
-    print('--- SAVING TO MY HERD ---');
-    print('Label: $label');
-    print('Confidence: $confidence');
-    print('Image Path: $imagePath');
-    print('-------------------------');
-
-    // Show a confirmation message to the user
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: Colors.green,
-        content: Text('$label added to My Herd!'),
-      ),
-    );
+  Future<void> _saveToHerd(String label, double confidence, String imagePath) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be logged in to save to your herd.')),
+      );
+      return;
+    }
+    if (_image == null) return;
+    setState(() { _loading = true; });
+    try {
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('herd_images')
+          .child(user.uid)
+          .child(fileName);
+      await storageRef.putFile(_image!);
+      final imageUrl = await storageRef.getDownloadURL();
+      final herdCollection = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('herd');
+      await herdCollection.add({
+        'name': label,
+        'breed': label,
+        'confidence': confidence,
+        'imageUrl': imageUrl,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.green,
+          content: Text('$label added to My Herd!'),
+        ),
+      );
+      _reset();
+    } catch (e) {
+      print('Failed to save to herd: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(backgroundColor: Colors.red, content: Text('Error: Could not save animal.')),
+      );
+    } finally {
+      setState(() { _loading = false; });
+    }
   }
 
   void _reset() {
@@ -153,7 +172,10 @@ class _ScanAnimalScreenState extends State<ScanAnimalScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pashuu Animal Scanner'),
+        title: const Text('Pashu Scanner'),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 4,
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -163,9 +185,9 @@ class _ScanAnimalScreenState extends State<ScanAnimalScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
               if (_image == null)
-                _buildInitialView() // Show buttons to select an image
+                _buildInitialView()
               else
-                _buildResultView(), // Show the image and the result
+                _buildResultView(),
             ],
           ),
         ),
@@ -173,7 +195,6 @@ class _ScanAnimalScreenState extends State<ScanAnimalScreen> {
     );
   }
 
-  // Widget to show when no image has been selected yet
   Widget _buildInitialView() {
     return Column(
       children: [
@@ -213,11 +234,9 @@ class _ScanAnimalScreenState extends State<ScanAnimalScreen> {
     );
   }
 
-  // Widget to show the selected image and the prediction result
   Widget _buildResultView() {
     String topLabel = 'Unknown';
     double maxConfidence = 0.0;
-
     if (_output != null && _labels != null && _output!.isNotEmpty) {
       maxConfidence = _output!.reduce((a, b) => a > b ? a : b);
       int topIndex = _output!.indexOf(maxConfidence);
@@ -225,7 +244,6 @@ class _ScanAnimalScreenState extends State<ScanAnimalScreen> {
         topLabel = _labels![topIndex];
       }
     }
-
     return Column(
       children: [
         Padding(

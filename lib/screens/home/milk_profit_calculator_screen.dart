@@ -14,35 +14,20 @@ class MilkProfitCalculatorScreen extends StatefulWidget {
 
 class _MilkProfitCalculatorScreenState extends State<MilkProfitCalculatorScreen> {
   final _formKey = GlobalKey<FormState>();
-
   final _milkPriceController = TextEditingController();
   final _litersSoldController = TextEditingController();
-  // Removed: final _fatContentController = TextEditingController();
-  // Removed: final _feedCostController = TextEditingController();
-  // Removed: final _otherCostsController = TextEditingController();
-
   double? _totalRevenue;
-  // Cost is now always zero as there are no input cost fields
   final double _totalCost = 0.0;
   double? _netProfit;
-
   bool _isSaving = false;
-  final double _borderRadius = 12.0; // Consistent border radius
+  final double _borderRadius = 12.0;
 
   void _calculateProfit() {
     if (_formKey.currentState!.validate()) {
       final double baseMilkPrice = double.tryParse(_milkPriceController.text) ?? 0;
       final double litersSold = double.tryParse(_litersSoldController.text) ?? 0;
-      // Removed: final double fatContent = double.tryParse(_fatContentController.text) ?? 0;
-      // Removed: final double feedCost = double.tryParse(_feedCostController.text) ?? 0;
-      // Removed: final double otherCosts = double.tryParse(_otherCostsController.text) ?? 0;
-
-      // --- Simplified Calculation Logic ---
-      // No fat content adjustment, no feed or other costs
-      double effectiveMilkPrice = baseMilkPrice; // Simple price per liter
-      double calculatedRevenue = effectiveMilkPrice * litersSold;
-      double calculatedNetProfit = calculatedRevenue - _totalCost; // _totalCost is 0.0
-
+      double calculatedRevenue = baseMilkPrice * litersSold;
+      double calculatedNetProfit = calculatedRevenue - _totalCost;
       setState(() {
         _totalRevenue = calculatedRevenue;
         _netProfit = calculatedNetProfit;
@@ -50,41 +35,46 @@ class _MilkProfitCalculatorScreenState extends State<MilkProfitCalculatorScreen>
     }
   }
 
-  // --- FUNCTION TO SAVE DATA TO FIRESTORE (NO SNACKBAR CHANGES) ---
   Future<void> _saveProfitToHistory() async {
-    if (_netProfit == null) return; // Don't save if there's no result
-
+    if (_netProfit == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please calculate the profit first.')),
+      );
+      return;
+    }
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      // Keep a basic alert if not logged in, as it's critical.
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('You must be logged in to save history.')),
       );
       return;
     }
-
     setState(() { _isSaving = true; });
-
+    final double pricePerLiter = double.tryParse(_milkPriceController.text) ?? 0;
+    final double litersSold = double.tryParse(_litersSoldController.text) ?? 0;
     try {
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .collection('milkProfits')
           .add({
+        'litersSold': litersSold,
+        'pricePerLiter': pricePerLiter,
         'totalRevenue': _totalRevenue,
-        'totalCost': _totalCost, // Will always be 0.0 now
+        'totalCost': _totalCost,
         'netProfit': _netProfit,
         'timestamp': FieldValue.serverTimestamp(),
       });
-
-      // Original snackbar removed per request.
-      // If you want a silent success, you can leave this empty.
-      // If you need a more visible success without a snackbar, consider a temporary icon or text change.
-
-    } catch (e) {
-      // Keep basic error indication
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save: $e'), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('Saved to history!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      print('Error saving to Firestore: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save. Check your connection or permissions.'), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) {
@@ -97,23 +87,19 @@ class _MilkProfitCalculatorScreenState extends State<MilkProfitCalculatorScreen>
   void dispose() {
     _milkPriceController.dispose();
     _litersSoldController.dispose();
-    // Removed: _fatContentController.dispose();
-    // Removed: _feedCostController.dispose();
-    // Removed: _otherCostsController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final Color primaryColor = Theme.of(context).primaryColor;
-    final Color onSurfaceColor = Theme.of(context).colorScheme.onSurface;
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Milk Profit Calculator'),
-        backgroundColor: primaryColor, // Consistent with settings screen
-        foregroundColor: Colors.white, // Consistent with settings screen
-        elevation: 4, // Consistent with settings screen
+        backgroundColor: theme.primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 4,
         actions: [
           IconButton(
             icon: const Icon(Icons.history),
@@ -128,35 +114,26 @@ class _MilkProfitCalculatorScreenState extends State<MilkProfitCalculatorScreen>
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0), // Consistent with settings screen
+        padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildSectionTitle('Milk Sale Details', onSurfaceColor), // Changed section title
+              _buildSectionTitle('Milk Sale Details', theme),
               const SizedBox(height: 10),
               _buildTextFormField(
-                  _milkPriceController, 'Price per Liter (₹)', Icons.currency_rupee, onSurfaceColor, _borderRadius),
-              const SizedBox(height: 15), // Spacing between input fields
+                  _milkPriceController, 'Price per Liter (₹)', Icons.currency_rupee),
+              const SizedBox(height: 15),
               _buildTextFormField(
-                  _litersSoldController, 'Liters Sold', Icons.water_drop, onSurfaceColor, _borderRadius),
+                  _litersSoldController, 'Liters Sold', Icons.water_drop),
               const SizedBox(height: 30),
-
-              // Removed "Cost Details" section as all cost fields are gone.
-              // Removed: _buildSectionTitle('Cost Details', onSurfaceColor),
-              // Removed: const SizedBox(height: 10),
-              // Removed: _buildTextFormField(...) for feed cost
-              // Removed: const SizedBox(height: 15),
-              // Removed: _buildTextFormField(...) for other costs
-              // Removed: const SizedBox(height: 30),
 
               ElevatedButton.icon(
                 onPressed: _calculateProfit,
-                icon: const Icon(Icons.calculate, color: Colors.white),
-                label: const Text('Calculate Profit', style: TextStyle(color: Colors.white)),
+                icon: const Icon(Icons.calculate),
+                label: const Text('Calculate Profit'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
                   minimumSize: const Size(double.infinity, 50),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(_borderRadius)),
                 ),
@@ -164,17 +141,16 @@ class _MilkProfitCalculatorScreenState extends State<MilkProfitCalculatorScreen>
               const SizedBox(height: 30),
 
               if (_netProfit != null) ...[
-                _buildResultCard(primaryColor, onSurfaceColor, _borderRadius),
-                const SizedBox(height: 15), // Spacing below result card
+                _buildResultCard(theme),
+                const SizedBox(height: 15),
                 OutlinedButton.icon(
                   onPressed: _isSaving ? null : _saveProfitToHistory,
                   icon: _isSaving
-                      ? SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2, color: primaryColor))
-                      : Icon(Icons.save_alt, color: primaryColor),
-                  label: Text('Save to History', style: TextStyle(color: primaryColor)),
+                      ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.save_alt),
+                  label: const Text('Save to History'),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 50),
-                    side: BorderSide(color: primaryColor),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(_borderRadius)),
                   ),
                 ),
@@ -186,43 +162,27 @@ class _MilkProfitCalculatorScreenState extends State<MilkProfitCalculatorScreen>
     );
   }
 
-  // Helper widget to build section titles, consistent with settings screen
-  Widget _buildSectionTitle(String title, Color onSurfaceColor) {
+  Widget _buildSectionTitle(String title, ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 5.0, top: 10.0, left: 5.0),
       child: Text(
         title,
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: onSurfaceColor.withOpacity(0.8), // Muted color for section title
+        style: theme.textTheme.titleLarge?.copyWith(
+          color: theme.colorScheme.onSurface.withOpacity(0.8),
         ),
       ),
     );
   }
 
-  // Helper for consistent TextFormFields
-  Widget _buildTextFormField(TextEditingController controller, String label, IconData icon, Color onSurfaceColor, double borderRadius) {
+  Widget _buildTextFormField(TextEditingController controller, String label, IconData icon) {
     return TextFormField(
       controller: controller,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: onSurfaceColor.withOpacity(0.6)),
-        filled: true,
-        fillColor: Colors.white,
+        prefixIcon: Icon(icon),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(borderRadius),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(_borderRadius),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(borderRadius),
-          borderSide: BorderSide(color: onSurfaceColor.withOpacity(0.1), width: 1),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(borderRadius),
-          borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
       ),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       validator: (value) {
@@ -230,41 +190,40 @@ class _MilkProfitCalculatorScreenState extends State<MilkProfitCalculatorScreen>
         if (double.tryParse(value) == null) return 'Please enter a valid number';
         return null;
       },
-      style: TextStyle(color: onSurfaceColor, fontSize: 16),
     );
   }
 
-  // Result card styling
-  Widget _buildResultCard(Color primaryColor, Color onSurfaceColor, double borderRadius) {
+  Widget _buildResultCard(ThemeData theme) {
     bool isProfit = _netProfit! >= 0;
+    Color cardColor = isProfit
+        ? theme.colorScheme.primaryContainer.withOpacity(0.3)
+        : theme.colorScheme.errorContainer.withOpacity(0.4);
+    Color textColor = isProfit ? theme.colorScheme.primary : theme.colorScheme.error;
+
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(borderRadius),
+        borderRadius: BorderRadius.circular(_borderRadius),
       ),
-      color: isProfit ? Colors.green.shade50 : Colors.red.shade50,
+      color: cardColor,
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
-            _buildResultRow('Total Revenue:', '₹${_totalRevenue!.toStringAsFixed(2)}', onSurfaceColor),
-            // Removed "Total Costs" row as there are no longer any input costs.
-            // Removed: const Divider(height: 20),
-            // Removed: _buildResultRow('Total Costs:', '₹${_totalCost!.toStringAsFixed(2)}', onSurfaceColor),
+            _buildResultRow('Total Revenue:', '₹${_totalRevenue!.toStringAsFixed(2)}', theme),
             const Divider(height: 24, thickness: 1.5),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   isProfit ? 'Net Profit:' : 'Net Loss:',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: theme.textTheme.titleLarge,
                 ),
                 Text(
                   '₹${_netProfit!.abs().toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: 20,
+                  style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: isProfit ? primaryColor : Colors.red.shade800,
+                    color: textColor,
                   ),
                 ),
               ],
@@ -275,12 +234,12 @@ class _MilkProfitCalculatorScreenState extends State<MilkProfitCalculatorScreen>
     );
   }
 
-  Widget _buildResultRow(String label, String value, Color onSurfaceColor) {
+  Widget _buildResultRow(String label, String value, ThemeData theme) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(fontSize: 16, color: onSurfaceColor.withOpacity(0.7))),
-        Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+        Text(label, style: theme.textTheme.bodyLarge),
+        Text(value, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500)),
       ],
     );
   }

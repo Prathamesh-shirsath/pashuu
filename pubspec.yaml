@@ -58,6 +58,8 @@ dependencies:
   share_plus: ^7.2.1
   tflite_flutter: ^0.12.1
   provider: ^6.1.1 # <--- ADD THIS LINE
+  fl_chart: ^0.67.0
+
 
 
 
