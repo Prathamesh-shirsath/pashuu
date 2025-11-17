@@ -49,6 +49,7 @@ dependencies:
   url_launcher: ^6.1.14
   image: ^4.1.7
 
+  flutter_heatmap_calendar: ^1.0.5
 
 
 
@@ -59,6 +60,7 @@ dependencies:
   tflite_flutter: ^0.12.1
   provider: ^6.1.1 # <--- ADD THIS LINE
   fl_chart: ^0.67.0
+  flutter_staggered_grid_view: ^0.6.2
 
 
 

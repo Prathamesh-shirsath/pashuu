@@ -5,30 +5,37 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'dart:math'; // --- NEW --- For using min()
+
+// Enum for type-safe time frame selection
+enum TimeFrame { Daily, Weekly, Monthly }
 
 class MilkAnalytics {
   double totalEarnings = 0.0;
   double totalLiters = 0.0;
   double avgPrice = 0.0;
-  int uniqueMonths = 0;
   DateTime? firstEntryDate;
   DateTime? lastEntryDate;
 
+  // Process the raw documents to get summary stats
   void processDocs(List<QueryDocumentSnapshot> docs) {
     if (docs.isEmpty) return;
+
+    // Reset values
     totalEarnings = 0.0;
     totalLiters = 0.0;
     firstEntryDate = null;
     lastEntryDate = null;
-    Set<String> monthSet = {};
+
     for (var doc in docs) {
       final data = doc.data() as Map<String, dynamic>;
       final revenue = (data['totalRevenue'] as num?)?.toDouble() ?? 0.0;
       final liters = (data['litersSold'] as num?)?.toDouble() ?? 0.0;
       final timestamp = (data['timestamp'] as Timestamp).toDate();
+
       totalEarnings += revenue;
       totalLiters += liters;
-      monthSet.add(DateFormat('yyyy-MM').format(timestamp));
+
       if (firstEntryDate == null || timestamp.isBefore(firstEntryDate!)) {
         firstEntryDate = timestamp;
       }
@@ -36,10 +43,39 @@ class MilkAnalytics {
         lastEntryDate = timestamp;
       }
     }
-    uniqueMonths = monthSet.length;
+
     if (totalLiters > 0) {
       avgPrice = totalEarnings / totalLiters;
     }
+  }
+
+  // Centralized logic for aggregating histogram data
+  Map<String, double> getAggregatedEarnings(
+      List<QueryDocumentSnapshot> docs, TimeFrame timeFrame) {
+    Map<String, double> aggregatedData = {};
+    for (var doc in docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final timestamp = (data['timestamp'] as Timestamp).toDate();
+      final revenue = (data['totalRevenue'] as num?)?.toDouble() ?? 0.0;
+
+      String key;
+      switch (timeFrame) {
+        case TimeFrame.Daily:
+          key = DateFormat('d MMM').format(timestamp);
+          break;
+        case TimeFrame.Weekly:
+        // Find the start of the week (assuming Monday is the first day)
+          final startOfWeek =
+          timestamp.subtract(Duration(days: timestamp.weekday - 1));
+          key = DateFormat('d MMM').format(startOfWeek);
+          break;
+        case TimeFrame.Monthly:
+          key = DateFormat('MMM y').format(timestamp);
+          break;
+      }
+      aggregatedData[key] = (aggregatedData[key] ?? 0) + revenue;
+    }
+    return aggregatedData;
   }
 }
 
@@ -53,8 +89,7 @@ class MilkProfitHistoryScreen extends StatefulWidget {
 
 class _MilkProfitHistoryScreenState extends State<MilkProfitHistoryScreen> {
   final User? currentUser = FirebaseAuth.instance.currentUser;
-  String _selectedTimeFrame = 'Monthly';
-  final List<String> _timeFrameOptions = ['Daily', 'Weekly', 'Monthly'];
+  TimeFrame _selectedTimeFrame = TimeFrame.Monthly;
 
   @override
   Widget build(BuildContext context) {
@@ -74,7 +109,8 @@ class _MilkProfitHistoryScreenState extends State<MilkProfitHistoryScreen> {
             .collection('users')
             .doc(currentUser!.uid)
             .collection('milkProfits')
-            .orderBy('timestamp', descending: false)
+            .orderBy('timestamp', descending: true)
+            .limit(365)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -85,10 +121,20 @@ class _MilkProfitHistoryScreenState extends State<MilkProfitHistoryScreen> {
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const Center(
-                child: Text('No milk profit data found.'));
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.bar_chart_outlined, size: 80, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text('No Milk Data Found', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8),
+                  Text('Add your first milk sale to see your analytics!', textAlign: TextAlign.center, style: TextStyle(fontSize: 16)),
+                ],
+              ),
+            );
           }
 
-          final historyDocs = snapshot.data!.docs;
+          final historyDocs = snapshot.data!.docs.reversed.toList();
           final analytics = MilkAnalytics()..processDocs(historyDocs);
 
           return SingleChildScrollView(
@@ -106,14 +152,10 @@ class _MilkProfitHistoryScreenState extends State<MilkProfitHistoryScreen> {
                 _buildChartCard(
                   title: 'Earnings Histogram',
                   dropdown: _buildTimeFrameDropdown(theme),
-                  child: _buildEarningsHistogram(
-                      historyDocs, _selectedTimeFrame, theme),
+                  child: _buildEarningsHistogram(historyDocs, _selectedTimeFrame, theme, analytics), // --- FIX: Pass analytics instance
                 ),
                 const SizedBox(height: 24),
-                _buildChartCard(
-                  title: 'Recent Entries',
-                  child: _buildRecentEntriesTable(historyDocs.reversed.toList()),
-                ),
+                _buildRecentEntriesCard(historyDocs.reversed.toList(), theme),
               ],
             ),
           );
@@ -123,53 +165,57 @@ class _MilkProfitHistoryScreenState extends State<MilkProfitHistoryScreen> {
   }
 
   Widget _buildSummaryCards(MilkAnalytics analytics, ThemeData theme) {
-    final currencyFormatter =
-    NumberFormat.currency(locale: 'en_IN', symbol: '₹');
-
+    final currencyFormatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     if (analytics.firstEntryDate == null || analytics.lastEntryDate == null) {
       return const SizedBox.shrink();
     }
-
     return Row(
       children: [
         Expanded(
             child: _summaryCard(
                 'Total Earnings',
                 currencyFormatter.format(analytics.totalEarnings),
-                'Period: ${DateFormat('d MMM').format(analytics.firstEntryDate!)} - ${DateFormat('d MMM').format(analytics.lastEntryDate!)}',
+                Icons.trending_up,
                 theme)),
         const SizedBox(width: 12),
         Expanded(
             child: _summaryCard(
                 'Total Liters',
-                '${analytics.totalLiters.toStringAsFixed(0)} L',
-                'Avg price: ${currencyFormatter.format(analytics.avgPrice)}/L',
+                '${analytics.totalLiters.toStringAsFixed(1)} L',
+                Icons.opacity,
                 theme)),
       ],
     );
   }
 
-  Widget _summaryCard(String title, String value, String subtitle, ThemeData theme) {
+  Widget _summaryCard(String title, String value, IconData icon, ThemeData theme) {
     return Card(
       elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Text(title, style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant
-            )),
-            const SizedBox(height: 8),
-            Text(value, style: theme.textTheme.headlineSmall),
-            const SizedBox(height: 4),
-            Text(subtitle, style: theme.textTheme.bodySmall),
+            Icon(icon, size: 40, color: theme.primaryColor),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text(value,
+                      style: theme.textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
+  // --- FIX --- Restored the implementation of this method.
   Widget _buildChartCard(
       {required String title, Widget? dropdown, required Widget child}) {
     return Card(
@@ -183,8 +229,7 @@ class _MilkProfitHistoryScreenState extends State<MilkProfitHistoryScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(title,
-                    style: Theme.of(context).textTheme.titleLarge),
+                Text(title, style: Theme.of(context).textTheme.titleLarge),
                 if (dropdown != null) dropdown,
               ],
             ),
@@ -199,6 +244,7 @@ class _MilkProfitHistoryScreenState extends State<MilkProfitHistoryScreen> {
     );
   }
 
+
   Widget _buildTimeFrameDropdown(ThemeData theme) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12.0),
@@ -207,18 +253,20 @@ class _MilkProfitHistoryScreenState extends State<MilkProfitHistoryScreen> {
         borderRadius: BorderRadius.circular(8.0),
       ),
       child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
+        child: DropdownButton<TimeFrame>(
           value: _selectedTimeFrame,
-          items: _timeFrameOptions.map((String value) {
-            return DropdownMenuItem<String>(
+          items: TimeFrame.values.map((TimeFrame value) {
+            return DropdownMenuItem<TimeFrame>(
               value: value,
-              child: Text(value),
+              child: Text(value.name),
             );
           }).toList(),
           onChanged: (newValue) {
-            setState(() {
-              _selectedTimeFrame = newValue!;
-            });
+            if (newValue != null) {
+              setState(() {
+                _selectedTimeFrame = newValue;
+              });
+            }
           },
         ),
       ),
@@ -241,7 +289,28 @@ class _MilkProfitHistoryScreenState extends State<MilkProfitHistoryScreen> {
     }
     return LineChart(
       LineChartData(
+        lineTouchData: LineTouchData(
+          touchTooltipData: LineTouchTooltipData(
+           // tooltipBgColor: theme.colorScheme.secondaryContainer,
+            getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
+              return touchedBarSpots.map((barSpot) {
+                final date = DateTime.fromMillisecondsSinceEpoch(barSpot.x.toInt());
+                return LineTooltipItem(
+                  '${DateFormat('d MMM').format(date)}\n',
+                  theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold),
+                  children: [
+                    TextSpan(
+                      text: '₹${barSpot.y.toStringAsFixed(0)}',
+                      style: TextStyle(color: theme.colorScheme.onSecondaryContainer),
+                    ),
+                  ],
+                );
+              }).toList();
+            },
+          ),
+        ),
         gridData: FlGridData(show: false),
+        // --- FIX --- Restored the titlesData implementation.
         titlesData: FlTitlesData(
           leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40)),
           bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, getTitlesWidget: (value, meta) {
@@ -270,29 +339,12 @@ class _MilkProfitHistoryScreenState extends State<MilkProfitHistoryScreen> {
     );
   }
 
-  Widget _buildEarningsHistogram(List<QueryDocumentSnapshot> docs, String timeFrame, ThemeData theme) {
+  Widget _buildEarningsHistogram(List<QueryDocumentSnapshot> docs, TimeFrame timeFrame, ThemeData theme, MilkAnalytics analytics) {
     if (docs.isEmpty) return const Center(child: Text("No data for chart."));
-    Map<String, double> aggregatedData = {};
-    for (var doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final timestamp = (data['timestamp'] as Timestamp).toDate();
-      final revenue = (data['totalRevenue'] as num?)?.toDouble() ?? 0.0;
-      String key;
-      switch (timeFrame) {
-        case 'Daily':
-          key = DateFormat('d MMM').format(timestamp);
-          break;
-        case 'Weekly':
-          final startOfWeek = timestamp.subtract(Duration(days: timestamp.weekday - 1));
-          key = DateFormat('d MMM').format(startOfWeek);
-          break;
-        case 'Monthly':
-        default:
-          key = DateFormat('MMM y').format(timestamp);
-          break;
-      }
-      aggregatedData[key] = (aggregatedData[key] ?? 0) + revenue;
-    }
+
+    // --- FIX --- Use the passed-in analytics instance.
+    final aggregatedData = analytics.getAggregatedEarnings(docs, timeFrame);
+
     final barGroups = aggregatedData.entries.toList().asMap().entries.map((entry) {
       int index = entry.key;
       var data = entry.value;
@@ -308,10 +360,30 @@ class _MilkProfitHistoryScreenState extends State<MilkProfitHistoryScreen> {
         ],
       );
     }).toList();
+
     return BarChart(
       BarChartData(
+        barTouchData: BarTouchData(
+          touchTooltipData: BarTouchTooltipData(
+            //tooltipBgColor: theme.colorScheme.secondaryContainer,
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              String week = aggregatedData.keys.elementAt(group.x);
+              return BarTooltipItem(
+                '$week\n',
+                theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold),
+                children: <TextSpan>[
+                  TextSpan(
+                    text: '₹${(rod.toY).toStringAsFixed(0)}',
+                    style: TextStyle(color: theme.colorScheme.onSecondaryContainer),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
         alignment: BarChartAlignment.spaceAround,
         barGroups: barGroups,
+        // --- FIX --- Restored the titlesData implementation.
         titlesData: FlTitlesData(
           leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40)),
           bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, getTitlesWidget: (value, meta) {
@@ -330,30 +402,52 @@ class _MilkProfitHistoryScreenState extends State<MilkProfitHistoryScreen> {
     );
   }
 
-  Widget _buildRecentEntriesTable(List<QueryDocumentSnapshot> docs) {
-    return DataTable(
-      columnSpacing: 20,
-      columns: const [
-        DataColumn(label: Text('Date')),
-        DataColumn(label: Text('Liters'), numeric: true),
-        DataColumn(label: Text('Price/L'), numeric: true),
-        DataColumn(label: Text('Earnings'), numeric: true),
-      ],
-      rows: docs.take(10).map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        final liters = (data['litersSold'] as num?)?.toString() ?? '0';
-        final price = '₹${(data['pricePerLiter'] as num?)?.toStringAsFixed(2) ?? '0.00'}';
-        final revenue = '₹${(data['totalRevenue'] as num?)?.toStringAsFixed(0) ?? '0'}';
-        final date = DateFormat('yyyy-MM-dd').format((data['timestamp'] as Timestamp).toDate());
-        return DataRow(
-          cells: [
-            DataCell(Text(date)),
-            DataCell(Text(liters)),
-            DataCell(Text(price)),
-            DataCell(Text(revenue)),
-          ],
-        );
-      }).toList(),
+  Widget _buildRecentEntriesCard(List<QueryDocumentSnapshot> docs, ThemeData theme) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text('Recent Entries', style: theme.textTheme.titleLarge),
+          ),
+          const Divider(height: 1),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: min(docs.length, 5), // Show up to 5 recent entries
+            separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
+            itemBuilder: (context, index) {
+              final doc = docs[index];
+              final data = doc.data() as Map<String, dynamic>;
+              final liters = (data['litersSold'] as num?)?.toDouble() ?? 0.0;
+              final price = (data['pricePerLiter'] as num?)?.toDouble() ?? 0.0;
+              final revenue = (data['totalRevenue'] as num?)?.toDouble() ?? 0.0;
+              final date = (data['timestamp'] as Timestamp).toDate();
+
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: theme.primaryColor.withOpacity(0.1),
+                  child: Text(
+                    DateFormat('d').format(date),
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, color: theme.primaryColor),
+                  ),
+                ),
+                title: Text(
+                  '₹${revenue.toStringAsFixed(0)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                    '${liters.toStringAsFixed(1)} L  @ ₹${price.toStringAsFixed(2)}/L'),
+                trailing: Text(DateFormat('MMM y').format(date)),
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 }
