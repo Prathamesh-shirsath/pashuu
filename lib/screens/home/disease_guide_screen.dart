@@ -583,3 +583,4 @@ List<DiseaseEntry> _getDiseaseData() {
     ),
   ];
 }
+//pratham
