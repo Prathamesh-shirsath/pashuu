@@ -37,7 +37,8 @@ dependencies:
   carousel_slider: ^5.1.1
   firebase_core: ^4.2.1
   firebase_auth: ^6.1.2
-
+  geolocator: ^9.0.2
+  geocoding: ^2.1.0
   cloud_firestore: ^6.1.0
   firebase_storage: 13.0.4
   intl: ^0.20.2
@@ -68,8 +69,16 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.13.1
 
+flutter_launcher_icons:
+  # === 1. SET YOUR APP NAME HERE ===
+  name: "Pashuu"
 
+  # === 2. SET YOUR APP ICON HERE ===
+  android: true
+  ios: true
+  image_path: "assets/logo.png" # Path to your logo
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -93,6 +102,32 @@ flutter:
   assets:
     - assets/ml/breed_model.tflite
     - assets/ml/labels.txt
+    - assets/logo.png
+    - assets/diseases/fmd.png
+    - assets/diseases/hs.jpg
+    - assets/diseases/bq.jpg
+    - assets/diseases/lsd.jpeg
+    - assets/diseases/theileriosis.jpeg
+    - assets/diseases/babesiosis.jpeg
+    - assets/diseases/anaplasmosis.jpeg
+    - assets/diseases/mastitis.jpg
+    - assets/diseases/brucellosis.jpeg
+    - assets/diseases/tb.jpeg
+    - assets/diseases/bvd.jpg
+    - assets/diseases/pneumonia.webp
+    - assets/diseases/milk_fever.png
+    - assets/diseases/ketosis.jpeg
+    - assets/diseases/bloat.jpg
+    - assets/diseases/indigestion.jpeg
+    - assets/diseases/worms.webp
+    - assets/diseases/footrot.jpg
+    - assets/diseases/pinkeye.jpeg
+    - assets/diseases/diarrhea.jpeg
+    - assets/diseases/anthrax.jpg
+    - assets/diseases/ringworm.png
+    - assets/diseases/fly_bite.jpeg
+    - assets/diseases/ticks.jpeg
+    - assets/diseases/heatstress.png
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

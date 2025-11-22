@@ -437,7 +437,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         _buildGridItem(
           context,
           Icons.grass,
-          'MY HERD',
+          'MY HERDS',
               () {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const MyHerdScreen()));
           },
@@ -445,7 +445,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         _buildGridItem(
           context,
           Icons.history,
-          'PROFIT HISTORY',
+          'MILK EARNINGS',
               () {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const MilkProfitHistoryScreen()));
           },

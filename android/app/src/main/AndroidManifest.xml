@@ -1,11 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="pashuu"
+        android:label="PashuScan"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <!-- The android:name="${applicationName}" usually resolves to io.flutter.app.FlutterApplication
              or a custom Application class if defined in build.gradle.
              IDE might show 'Unresolved class' warning, but Gradle handles this correctly during build. -->
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -31,9 +32,12 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+
     </application>
 
     <!-- Permissions required by your app -->
+
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.INTERNET"/> <!-- Essential for network requests (APIs, Firebase) -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/> <!-- Good practice for checking network connectivity -->

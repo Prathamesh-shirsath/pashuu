@@ -1,6 +1,9 @@
 // lib/screens/home/settings_screen.dart
-import 'package:firebase_auth/firebase_auth.dart'; // <-- Import Firebase Auth
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
+import 'edit_profile_screen.dart'; // 👈 NEW: import profile screen
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -10,153 +13,236 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _notificationsEnabled = true; // State for notifications toggle
-  String _selectedLanguage = 'English'; // State for selected language
+  bool _notificationsEnabled = true;
+  String _selectedLanguage = 'English';
+  String _themeMode = 'System'; // System / Light / Dark
+  bool _loadingPrefs = true;
+
+  User? get _user => FirebaseAuth.instance.currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserSettings();
+  }
+
+  Future<void> _loadUserSettings() async {
+    if (_user == null) {
+      setState(() {
+        _loadingPrefs = false;
+      });
+      return;
+    }
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_user!.uid)
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        setState(() {
+          _selectedLanguage = (data['language'] as String?) ?? 'English';
+          _notificationsEnabled =
+              (data['notificationsEnabled'] as bool?) ?? true;
+          _themeMode = (data['themeMode'] as String?) ?? 'System';
+        });
+      }
+    } catch (e) {
+      print('Error loading user settings: $e');
+    } finally {
+      setState(() {
+        _loadingPrefs = false;
+      });
+    }
+  }
+
+  Future<void> _saveUserSettings() async {
+    if (_user == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_user!.uid)
+          .set({
+        'language': _selectedLanguage,
+        'notificationsEnabled': _notificationsEnabled,
+        'themeMode': _themeMode,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      print('Error saving user settings: $e');
+    }
+  }
+
+  Future<void> _logout() async {
+    await FirebaseAuth.instance.signOut();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Get the current user from Firebase Auth
-    final user = FirebaseAuth.instance.currentUser;
     final Color primaryColor = Theme.of(context).primaryColor;
     final Color onSurfaceColor = Theme.of(context).colorScheme.onSurface;
-    final double borderRadius = 12.0; // Consistent border radius for cards/inputs
+    const double borderRadius = 12.0;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
-        backgroundColor: primaryColor, // Consistent with your app's style
-        foregroundColor: Colors.white, // White text/icons on primary background
-        elevation: 4, // Add some elevation
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 4,
       ),
-      body: SingleChildScrollView(
+      body: _loadingPrefs
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // User Profile Card
-            _buildProfileCard(context, user, borderRadius, onSurfaceColor),
+            _buildProfileCard(
+                context, _user, borderRadius, onSurfaceColor),
             const SizedBox(height: 30),
 
-            // General Settings Section Title
             _buildSectionTitle('General Settings', onSurfaceColor),
             const SizedBox(height: 10),
 
-            // Language Setting Card
+            // Language
             _buildSettingCard(
               context: context,
               icon: Icons.language,
               title: 'Language',
               trailing: DropdownButton<String>(
                 value: _selectedLanguage,
-                onChanged: (String? newValue) {
-                  if (newValue != null) {
-                    setState(() {
-                      _selectedLanguage = newValue;
-                      // TODO: Implement actual language change logic here
-                      // ScaffoldMessenger.of(context).showSnackBar(
-                      //   SnackBar(content: Text('Language changed to $newValue')),
-                      // );
-                    });
-                  }
+                onChanged: (String? newValue) async {
+                  if (newValue == null) return;
+                  setState(() {
+                    _selectedLanguage = newValue;
+                  });
+                  await _saveUserSettings();
                 },
-                items: <String>['English', 'Marathi', 'Hindi'] // Example languages
+                items: <String>['English', 'Marathi', 'Hindi']
                     .map<DropdownMenuItem<String>>((String value) {
                   return DropdownMenuItem<String>(
                     value: value,
-                    child: Text(value, style: TextStyle(color: onSurfaceColor)),
+                    child: Text(
+                      value,
+                      style: TextStyle(color: onSurfaceColor),
+                    ),
                   );
                 }).toList(),
-                underline: Container(), // Remove default underline for cleaner look
-                icon: Icon(Icons.arrow_drop_down, color: onSurfaceColor.withOpacity(0.6)), // Muted icon
-                style: TextStyle(color: onSurfaceColor, fontSize: 16), // Text style for selected value
+                underline: Container(),
+                icon: Icon(Icons.arrow_drop_down,
+                    color: onSurfaceColor.withOpacity(0.6)),
+                style: TextStyle(
+                    color: onSurfaceColor, fontSize: 16),
               ),
               borderRadius: borderRadius,
               onSurfaceColor: onSurfaceColor,
             ),
             const SizedBox(height: 15),
 
-            // Notifications Toggle Card
+            // Theme Mode
             _buildSettingCard(
               context: context,
-              icon: Icons.notifications,
-              title: 'Notifications',
-              trailing: Switch(
-                value: _notificationsEnabled,
-                onChanged: (bool value) {
+              icon: Icons.color_lens,
+              title: 'App Theme',
+              trailing: DropdownButton<String>(
+                value: _themeMode,
+                onChanged: (String? newValue) async {
+                  if (newValue == null) return;
                   setState(() {
-                    _notificationsEnabled = value;
-                    // TODO: Implement actual notification toggle logic here (e.g., Firebase Messaging)
-                    // ScaffoldMessenger.of(context).showSnackBar(
-                    //   SnackBar(content: Text('Notifications ${value ? 'Enabled' : 'Disabled'}')),
-                    // );
+                    _themeMode = newValue;
                   });
+                  await _saveUserSettings();
+                  // TODO: actually apply theme in main app using this value
                 },
-                activeColor: primaryColor, // Use app's primary color for active state
+                items: <String>['System', 'Light', 'Dark']
+                    .map<DropdownMenuItem<String>>((String value) {
+                  return DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(
+                      value,
+                      style: TextStyle(color: onSurfaceColor),
+                    ),
+                  );
+                }).toList(),
+                underline: Container(),
+                icon: Icon(Icons.arrow_drop_down,
+                    color: onSurfaceColor.withOpacity(0.6)),
+                style: TextStyle(
+                    color: onSurfaceColor, fontSize: 16),
               ),
               borderRadius: borderRadius,
               onSurfaceColor: onSurfaceColor,
             ),
+            const SizedBox(height: 15),
+
+            // Notifications
+            _buildSettingCard(
+              context: context,
+              icon: Icons.notifications_active,
+              title: 'Notifications',
+              trailing: Switch(
+                value: _notificationsEnabled,
+                onChanged: (bool value) async {
+                  setState(() {
+                    _notificationsEnabled = value;
+                  });
+                  await _saveUserSettings();
+                },
+                activeColor: primaryColor,
+              ),
+              borderRadius: borderRadius,
+              onSurfaceColor: onSurfaceColor,
+            ),
+
             const SizedBox(height: 30),
 
-            // Legal & Support Section Title
             _buildSectionTitle('Legal & Support', onSurfaceColor),
             const SizedBox(height: 10),
 
-            // Medical Support Card
             _buildSettingCard(
               context: context,
               icon: Icons.support_agent,
               title: 'Medical Support',
               onTap: () {
-                // TODO: Navigate to a Medical Support screen or show contact info
-                // ScaffoldMessenger.of(context).showSnackBar(
-                //   const SnackBar(content: Text('Navigating to Medical Support')),
-                // );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                        'For emergencies, contact your nearest veterinarian.'),
+                  ),
+                );
               },
               borderRadius: borderRadius,
               onSurfaceColor: onSurfaceColor,
             ),
             const SizedBox(height: 15),
 
-            // Privacy Policy Card
             _buildSettingCard(
               context: context,
               icon: Icons.privacy_tip,
               title: 'Privacy Policy',
               onTap: () {
-                // TODO: Navigate to a Privacy Policy screen or open a URL
-                // ScaffoldMessenger.of(context).showSnackBar(
-                //   const SnackBar(content: Text('Opening Privacy Policy')),
-                // );
-                // Example for opening URL:
-                // import 'package:url_launcher/url_launcher.dart';
-                // launchUrl(Uri.parse('https://www.yourwebsite.com/privacy'));
+                // TODO: Open URL or dedicated screen
               },
               borderRadius: borderRadius,
               onSurfaceColor: onSurfaceColor,
             ),
             const SizedBox(height: 15),
 
-            // Terms of Service Card
             _buildSettingCard(
               context: context,
               icon: Icons.description,
               title: 'Terms of Service',
               onTap: () {
-                // TODO: Navigate to a Terms of Service screen or open a URL
-                // ScaffoldMessenger.of(context).showSnackBar(
-                //   const SnackBar(content: Text('Opening Terms of Service')),
-                // );
-                // Example for opening URL:
-                // import 'package:url_launcher/url_launcher.dart';
-                // launchUrl(Uri.parse('https://www.yourwebsite.com/terms'));
+                // TODO: Open URL or dedicated screen
               },
               borderRadius: borderRadius,
               onSurfaceColor: onSurfaceColor,
             ),
+
             const SizedBox(height: 30),
 
-            // Logout Button
             _buildLogoutButton(context, borderRadius),
           ],
         ),
@@ -164,100 +250,125 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Helper widget for the user profile card
+  // ================== UI HELPERS ==================
+
   Widget _buildProfileCard(
-      BuildContext context, User? user, double borderRadius, Color onSurfaceColor) {
+      BuildContext context,
+      User? user,
+      double borderRadius,
+      Color onSurfaceColor,
+      ) {
+    final String name = user?.displayName?.trim().isNotEmpty == true
+        ? user!.displayName!.trim()
+        : 'Anonymous User';
+    final String email = user?.email ?? 'No email available';
+
+    String initials = '';
+    if (name.isNotEmpty && name != 'Anonymous User') {
+      final parts = name.split(' ');
+      if (parts.length == 1) {
+        initials = parts.first.characters.first.toUpperCase();
+      } else {
+        initials =
+            (parts.first.characters.first + parts.last.characters.first)
+                .toUpperCase();
+      }
+    } else if (email.isNotEmpty) {
+      initials = email.characters.first.toUpperCase();
+    } else {
+      initials = 'U';
+    }
+
+    final bool hasPhoto = user?.photoURL != null && user!.photoURL!.isNotEmpty;
+
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(borderRadius),
       ),
       margin: EdgeInsets.zero,
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-        leading: CircleAvatar(
-          radius: 25,
-          backgroundImage: user?.photoURL != null
-              ? NetworkImage(user!.photoURL!)
-              : const NetworkImage('https://via.placeholder.com/150/FFC107/000000?text=A') // Placeholder
-          as ImageProvider, // Cast to ImageProvider
-          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-          child: user?.photoURL == null && user?.displayName == null
-              ? Icon(Icons.person, color: Theme.of(context).primaryColor.withOpacity(0.7))
-              : null,
-        ),
-        title: Text(
-          user?.displayName ?? 'Anonymous User',
-          style: TextStyle(fontWeight: FontWeight.bold, color: onSurfaceColor),
-        ),
-        subtitle: Text(
-          user?.email ?? 'No email available',
-          style: TextStyle(color: onSurfaceColor.withOpacity(0.7)),
-        ),
-        trailing: Icon(Icons.arrow_forward_ios, color: onSurfaceColor.withOpacity(0.5), size: 18),
-        onTap: () {
-          // TODO: Implement navigation to a user profile editing screen
-          // ScaffoldMessenger.of(context).showSnackBar(
-          //   const SnackBar(content: Text('Opening Profile Details')),
-          // );
-        },
-      ),
-    );
-  }
-
-  // Helper widget to build section titles
-  Widget _buildSectionTitle(String title, Color onSurfaceColor) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 5.0, top: 10.0, left: 5.0),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: onSurfaceColor.withOpacity(0.8), // Muted color for section title
-        ),
-      ),
-    );
-  }
-
-  // Reusable widget to build each setting item as a styled card
-  Widget _buildSettingCard({
-    required BuildContext context,
-    required IconData icon,
-    required String title,
-    Widget? trailing, // Can be a Switch, Dropdown, etc.
-    VoidCallback? onTap,
-    required double borderRadius,
-    required Color onSurfaceColor,
-  }) {
-    return Card(
-      elevation: 3, // Similar elevation to other cards in your app
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(borderRadius),
-      ),
-      margin: EdgeInsets.zero, // Remove default card margin, use SizedBox for spacing
       child: InkWell(
-        // Provides ripple effect on tap
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(borderRadius), // Apply radius to InkWell's ripple
+        borderRadius: BorderRadius.circular(borderRadius),
+        onTap: user == null
+            ? null
+            : () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const EditProfileScreen(),
+            ),
+          );
+        },
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+          padding:
+          const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
           child: Row(
             children: [
-              Icon(icon, color: Theme.of(context).primaryColor), // Icon with primary color
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  title,
+              CircleAvatar(
+                radius: 28,
+                backgroundColor:
+                Theme.of(context).primaryColor.withOpacity(0.1),
+                backgroundImage: hasPhoto
+                    ? NetworkImage(user!.photoURL!)
+                    : null,
+                child: hasPhoto
+                    ? null
+                    : Text(
+                  initials,
                   style: TextStyle(
-                    fontSize: 16,
-                    color: onSurfaceColor, // Text color
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).primaryColor,
                   ),
                 ),
               ),
-              if (trailing != null) trailing,
-              if (onTap != null && trailing == null)
-                Icon(Icons.arrow_forward_ios, color: onSurfaceColor.withOpacity(0.5), size: 18),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                  CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: onSurfaceColor,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      email,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: onSurfaceColor.withOpacity(0.7),
+                      ),
+                    ),
+                    if (user == null)
+                      Text(
+                        'You are in guest mode',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange.shade700,
+                        ),
+                      ),
+                    if (user != null)
+                      const SizedBox(height: 4),
+                    if (user != null)
+                      Text(
+                        'Tap to edit profile details',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: onSurfaceColor.withOpacity(0.6),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (user != null)
+                Icon(Icons.edit,
+                    size: 18,
+                    color: onSurfaceColor.withOpacity(0.6)),
             ],
           ),
         ),
@@ -265,24 +376,84 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // The functional Log Out button
+  Widget _buildSectionTitle(String title, Color onSurfaceColor) {
+    return Padding(
+      padding:
+      const EdgeInsets.only(bottom: 5.0, top: 10.0, left: 5.0),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: onSurfaceColor.withOpacity(0.8),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingCard({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    Widget? trailing,
+    VoidCallback? onTap,
+    required double borderRadius,
+    required Color onSurfaceColor,
+  }) {
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+      margin: EdgeInsets.zero,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              vertical: 12.0, horizontal: 16.0),
+          child: Row(
+            children: [
+              Icon(icon, color: Theme.of(context).primaryColor),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: onSurfaceColor,
+                  ),
+                ),
+              ),
+              if (trailing != null) trailing,
+              if (onTap != null && trailing == null)
+                Icon(Icons.arrow_forward_ios,
+                    color: onSurfaceColor.withOpacity(0.5), size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildLogoutButton(BuildContext context, double borderRadius) {
     return TextButton(
       style: TextButton.styleFrom(
         backgroundColor: Colors.red.shade50,
         foregroundColor: Colors.red.shade700,
         padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(borderRadius)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(borderRadius),
+        ),
       ),
-      onPressed: () async {
-        // Sign out the user from Firebase
-        await FirebaseAuth.instance.signOut();
-        // The AuthGate will handle navigation back to the LoginScreen automatically.
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   const SnackBar(content: Text('Successfully logged out.')),
-        // );
-      },
-      child: const Text('Log Out', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+      onPressed: _logout,
+      child: const Text(
+        'Log Out',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 16,
+        ),
+      ),
     );
   }
 }

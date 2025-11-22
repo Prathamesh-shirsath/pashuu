@@ -43,7 +43,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.description_outlined),
             activeIcon: Icon(Icons.description),
-            label: 'Report',
+            label: 'Disease Guide',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.qr_code_scanner),
