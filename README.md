@@ -126,9 +126,9 @@ flutter run
 ---
 
 ## 👥 Contributors
-[@Prathamesh-shirsath](https://github.com/Prathamesh-shirsath)  
-* **Prathamesh Shirsath** – @Prathamesh-shirsath
-* **Sakshi Khedkar** – @Sakshi17-13
+ 
+* **Prathamesh Shirsath** – [@Prathamesh-shirsath](https://github.com/Prathamesh-shirsath) 
+* **Sakshi Khedkar** – [@Sakshi17-13](https://github.com/Sakshi17-13) 
 * **Pratiksha Sonawane** 
 
 ---
