@@ -127,8 +127,8 @@ flutter run
 
 ## 👥 Contributors
 
-* **Prathamesh Shirsath** – [@Prathamesh-shirsath]
-* **Sakshi Khedkar** – [@Sakshi17-13]
+* **Prathamesh Shirsath** – @Prathamesh-shirsath
+* **Sakshi Khedkar** – @Sakshi17-13
 * **Pratiksha Sonawane** 
 
 ---
