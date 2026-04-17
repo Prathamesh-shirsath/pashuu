@@ -5,9 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:pashuu/models/article_model.dart'; // Ensure this model is correctly defined
 
 class NewsService {
-  // IMPORTANT: The rss2json.com service does NOT use your NewsAPI.org key.
-  // The _apiKey field is now effectively unused by this service.
-  final String _apiKey = 'fbffac84331d4247b3d91d8c31aa84ad'; // Kept for reference, but not used by rss2json
+  //replace api key with your api key
+  final String _apiKey = '###################'; // Kept for reference, but not used by rss2json
 
   // --- REFINED & URL-ENCODED RSS FEED URL ---
   // This method constructs and URL-encodes the Google News RSS feed URL
