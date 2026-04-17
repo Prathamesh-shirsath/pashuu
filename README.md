@@ -58,22 +58,22 @@ To get a local copy up and running, follow these simple steps.
 git clone [https://github.com/Prathamesh-shirsath/pashuu.git](https://github.com/Prathamesh-shirsath/pashuu.git)
 cd pashuu```
 
-```2. Install Dependencies
+###2. Install Dependencies
 This command will fetch all the necessary Flutter packages (like TensorFlow Lite, Image Picker, etc.) listed in pubspec.yaml.
 
 
-flutter pub get```
+flutter pub get
 
-3. Setup the TFLite Model
+###3. Setup the TFLite Model
 Ensure your .tflite model and labels file are placed in the correct directory (usually assets/):
 
-assets/model.tflite
+```assets/model.tflite
 
-assets/labels.txt
+```assets/labels.txt
 
 Check pubspec.yaml to ensure these assets are declared under the assets: section.
 
-4. Connect Device & Run
+###4. Connect Device & Run
 Connect your Android/iOS device via USB or start an emulator, then run:
 
 Bash
