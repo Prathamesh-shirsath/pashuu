@@ -57,9 +57,9 @@ To get a local copy up and running, follow these simple steps.
 
 ```bash
 git clone [https://github.com/Prathamesh-shirsath/pashuu.git](https://github.com/Prathamesh-shirsath/pashuu.git)
-cd pashuu
+cd pashuu bash```
 
-###2. Install Dependencies
+### 2. Install Dependencies
 This command will fetch all the necessary Flutter packages (like TensorFlow Lite, Image Picker, etc.) listed in pubspec.yaml.
 
 
