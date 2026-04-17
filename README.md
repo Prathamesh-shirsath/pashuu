@@ -56,12 +56,14 @@ To get a local copy up and running, follow these simple steps.
 ### 1. Clone the Project
 ```bash
 git clone [https://github.com/Prathamesh-shirsath/pashuu.git](https://github.com/Prathamesh-shirsath/pashuu.git)
-cd pashuu
-2. Install Dependencies
+cd pashuu```
+
+```2. Install Dependencies
 This command will fetch all the necessary Flutter packages (like TensorFlow Lite, Image Picker, etc.) listed in pubspec.yaml.
 
 
-flutter pub get
+flutter pub get```
+
 3. Setup the TFLite Model
 Ensure your .tflite model and labels file are placed in the correct directory (usually assets/):
 
