@@ -5,7 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:pashuu/models/weather_model.dart';
 
 class WeatherService {
-  final String _apiKey = 'be2773b2249dc033e5e9a74bb5c76fa7';
+  //replace api key with your api key
+  final String _apiKey = '#####################';
   final String _baseUrl = 'https://api.openweathermap.org/data/2.5/weather';
 
   // For now, we'll fetch weather for a fixed city.
