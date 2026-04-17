@@ -39,9 +39,6 @@ The project follows a streamlined pipeline to ensure high accuracy on mobile dev
 
 ---
 
-## ⚙️ Installation & Setup
-
----
 
 ## ⚙️ Installation & Setup
 
@@ -84,3 +81,10 @@ Connect your Android/iOS device via USB or start an emulator, then run:
 ```Bash
 flutter run
 ```
+
+👥 Contributors
+Prathamesh Shirsath - @Prathamesh-shirsath
+
+[Sakshi Khedkar] - [@Sakshi17-13]
+
+[Pratiksha Sonawane] - 
